@@ -87,6 +87,11 @@
   --bar-bg:   rgba(13,17,23,.92);
 }
 
+
+/* color-scheme sul root — Safari usa questo per il date picker nativo */
+[data-theme="dark"] { color-scheme: dark; }
+[data-theme="light"] { color-scheme: light; }
+
 /* ══════════════════════════════════════
    BASE
 ══════════════════════════════════════ */
@@ -536,16 +541,35 @@ body{
   text-align:right;-webkit-appearance:none;appearance:none;min-width:0;
 }
 .ios-f input::placeholder{color:var(--label3)}
-/* iOS Safari: date/time picker non rispetta text-align:right — override */
-.ios-f input[type="date"],
-.ios-f input[type="time"],
-.ios-f input[type="datetime-local"]{
-  text-align:left;
-  -webkit-text-align:left;
-  flex:1;
-  min-width:0;
-  /* Evita che iOS ridimensioni il testo */
-  font-size:max(16px, 1em);
+
+/* input[type=date] rimossi — si usano select GG/MM/AAAA */
+
+/* ══ Date select widget ══ */
+.ios-f .date-sel-wrap{
+  display:flex;gap:4px;flex:1;align-items:center;justify-content:flex-end;
+}
+.date-sel{
+  background:transparent;
+  border:none;
+  outline:none;
+  color:var(--label);
+  font-size:15px;
+  font-family:inherit;
+  -webkit-appearance:none;
+  appearance:none;
+  text-align:right;
+  text-align-last:right;
+  cursor:pointer;
+  padding:0 2px;
+  flex-shrink:0;
+}
+/* Larghezze fisse per i 3 campi */
+.date-sel:nth-child(1){ min-width:46px; } /* GG */
+.date-sel:nth-child(2){ min-width:52px; } /* MM */
+.date-sel:nth-child(3){ min-width:58px; } /* AAAA */
+.date-sel option{
+  background:var(--bg2);
+  color:var(--label);
 }
 .ios-f select option{background:var(--bg2)}
 .ios-f textarea{
@@ -1602,6 +1626,66 @@ const fN=n=>{if(n==null||n==='')return'—';return Number(n).toLocaleString('it-
 const fE=n=>{if(!n&&n!==0)return'€0';return'€'+Number(n).toLocaleString('it-IT');};
 const esc=s=>{const t=(s==null?'':String(s));return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');};
 const v=id=>document.getElementById(id)?.value?.trim()||'';
+
+/* ══ DATE SELECT HELPERS ══════════════════════════════
+   Sostituisce input[type=date] con 3 select GG/MM/AAAA
+   Universali su iOS, Android, desktop — nessun picker nativo
+════════════════════════════════════════════════════ */
+
+// Genera HTML per un set di 3 select data (id_prefix = es. "f-di")
+function dateSelectHTML(idPrefix, valueStr, opts={}){
+  // valueStr = "YYYY-MM-DD" o ""
+  const [yyyy='',mm='',dd=''] = valueStr?(valueStr.split('-')):['',' ',' '];
+  const minYear = opts.minYear || 1900;
+  const maxYear = opts.maxYear || (new Date().getFullYear()+5);
+
+  const gg = Array.from({length:31},(_,i)=>i+1);
+  const mesi = ['Gen','Feb','Mar','Apr','Mag','Giu','Lug','Ago','Set','Ott','Nov','Dic'];
+  const anni = [];
+  for(let y=maxYear;y>=minYear;y--) anni.push(y);
+
+  const gSel = n => n === parseInt(dd) ? ' selected':'';
+  const mSel = n => n === parseInt(mm) ? ' selected':'';
+  const ySel = n => n === parseInt(yyyy) ? ' selected':'';
+
+  return `<div class="date-sel-wrap" id="${idPrefix}-wrap">
+    <select class="date-sel" id="${idPrefix}-gg" onchange="onDateSelChange('${idPrefix}')" aria-label="Giorno">
+      <option value="">GG</option>
+      ${gg.map(n=>`<option value="${n}"${gSel(n)}>${String(n).padStart(2,'0')}</option>`).join('')}
+    </select>
+    <select class="date-sel" id="${idPrefix}-mm" onchange="onDateSelChange('${idPrefix}')" aria-label="Mese">
+      <option value="">MM</option>
+      ${mesi.map((m,i)=>`<option value="${i+1}"${mSel(i+1)}>${m}</option>`).join('')}
+    </select>
+    <select class="date-sel" id="${idPrefix}-aa" onchange="onDateSelChange('${idPrefix}')" aria-label="Anno">
+      <option value="">AAAA</option>
+      ${anni.map(y=>`<option value="${y}"${ySel(y)}>${y}</option>`).join('')}
+    </select>
+    <input type="hidden" id="${idPrefix}" value="${valueStr||''}">
+  </div>`;
+}
+
+// Chiamato quando cambia uno dei 3 select — aggiorna il campo hidden
+function onDateSelChange(idPrefix){
+  const gg = document.getElementById(idPrefix+'-gg')?.value;
+  const mm = document.getElementById(idPrefix+'-mm')?.value;
+  const aa = document.getElementById(idPrefix+'-aa')?.value;
+  const hidden = document.getElementById(idPrefix);
+  if(!hidden) return;
+  if(gg && mm && aa){
+    const val = `${aa}-${String(mm).padStart(2,'0')}-${String(gg).padStart(2,'0')}`;
+    hidden.value = val;
+  } else {
+    hidden.value = '';
+  }
+  // Se è una data che triggerare altri calcoli, chiamale
+  if(idPrefix==='f-dn') aggiornaCF();
+  if(idPrefix==='f-di') aggiornaDfMin();
+  if(idPrefix==='f-rem-data') {} // nessun trigger necessario
+}
+
+// Legge il valore "YYYY-MM-DD" dal campo hidden associato ai 3 select
+// compatibile con v() — v('f-di') continua a funzionare leggendo l'hidden
 const upsert=(coll,r)=>{const i=DATA[coll].findIndex(x=>x.id===r.id);if(i>=0)DATA[coll][i]=r;else DATA[coll].push(r);};
 const SI={disponibile:'b-green',noleggiato:'b-blue',manutenzione:'b-orange',venduto:'b-dim'};
 const SICOL={disponibile:'var(--green-bg)',noleggiato:'var(--blue-bg)',manutenzione:'var(--orange-bg)',venduto:'var(--bg3)'};
@@ -2667,13 +2751,13 @@ function bCliente(body,d){
         <div class="ios-fg">
           <div class="ios-f"><label>Nome *</label><input id="f-nome" placeholder="Mario" value="${esc(d?.nome||'')}" oninput="aggiornaCF()"></div>
           <div class="ios-f"><label>Cognome *</label><input id="f-cognome" placeholder="Rossi" value="${esc(d?.cognome||'')}" oninput="aggiornaCF()"></div>
-          <div class="ios-f"><label>Sesso</label><select id="f-sesso" onchange="aggiornaCF()"><option value="">—</option><option value="M"${d?.sesso==='M'?' selected':''}>Maschio</option><option value="F"${d?.sesso==='F'?' selected':''}>Femmina</option></select></div>
+          <div class="ios-f"><label>Sesso</label><select id="f-sesso" onchange="aggiornaCF()" style="text-align:right;direction:ltr;text-align-last:right"><option value="">—</option><option value="M"${d?.sesso==='M'?' selected':''}>M</option><option value="F"${d?.sesso==='F'?' selected':''}>F</option></select></div>
           <div class="ios-f"><label>Indirizzo</label><input id="f-indirizzo" placeholder="Via Roma 1, Milano" value="${esc(d?.indirizzo||'')}"></div>
         </div>
       </div>
       <div class="fsec"><div class="fsec-title">Dati per C.F.</div>
         <div class="ios-fg">
-          <div class="ios-f"><label>Data nascita</label><input id="f-dn" type="date" value="${esc(d?.data_nascita||'')}" min="1900-01-01" max="${new Date().toISOString().split('T')[0]}" oninput="aggiornaCF()" onchange="aggiornaCF()" style="text-align:left;min-width:0;flex:1"></div>
+          <div class="ios-f"><label>Data nascita</label>${dateSelectHTML('f-dn', d?.data_nascita||'', {minYear:1900, maxYear:new Date().getFullYear()})}</div>
           <div class="ios-f"><label>Provincia</label>
             <select id="f-provincia" onchange="onProvinciaCF(this.value)" style="text-align:right">
               <option value="">Seleziona…</option>
@@ -2857,8 +2941,8 @@ function bNoleggio(body){
     </div>
     <div class="fsec"><div class="fsec-title">Periodo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Data inizio *</label><input id="f-di" type="date" value="${today}" min="${today}" style="text-align:left;flex:1" onchange="aggiornaDfMin()"></div>
-        <div class="ios-f"><label>Data fine *</label><input id="f-df" type="date" min="${today}" style="text-align:left;flex:1"></div>
+        <div class="ios-f"><label>Data inizio *</label>${dateSelectHTML('f-di', today, {minYear:new Date().getFullYear()-1, maxYear:new Date().getFullYear()+5})}</div>
+        <div class="ios-f"><label>Data fine *</label>${dateSelectHTML('f-df', '', {minYear:new Date().getFullYear()-1, maxYear:new Date().getFullYear()+5})}</div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Importo</div>
@@ -2923,11 +3007,8 @@ function selKmOpt(opt){
 }
 
 function aggiornaDfMin(){
-  const di=document.getElementById('f-di')?.value;
-  const df=document.getElementById('f-df');
-  if(!di||!df)return;
-  df.min=di;
-  if(df.value&&df.value<=di)df.value='';
+  // Con i select GG/MM/AAAA, aggiorniamo solo calcolaPrezzo
+  // La validazione di ordine date avviene in saveNoleggio
   calcolaPrezzo();
 }
 
@@ -2985,7 +3066,7 @@ function bVendita(body,d){
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="ios-f"><label>Data vendita *</label><input id="f-dataV" type="date" value="${today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data vendita *</label>${dateSelectHTML('f-dataV', today)}</div>
       </div>
     </div>
     <button class="ios-btn primary" onclick="saveVendita()" style="margin-top:6px" ${!dispVendita.length?'disabled':''}>Registra Vendita</button>`;
@@ -3032,12 +3113,12 @@ function bDdt(body,d){
     <div class="fsec"><div class="fsec-title">Documento</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Numero</label><input id="f-ddt-num" value="${num}"></div>
-        <div class="ios-f"><label>Data doc. *</label><input id="f-ddt-data" type="date" value="${preData}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data doc. *</label>${dateSelectHTML('f-ddt-data', preData)}</div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Consegna veicolo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Data consegna *</label><input id="f-ddt-data-cons" type="date" value="${preDataCons}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data consegna *</label>${dateSelectHTML('f-ddt-data-cons', preDataCons)}</div>
         <div class="ios-f"><label>Ora consegna *</label><input id="f-ddt-ora-cons" type="time" value="${nowTime}" style="text-align:left"></div>
       </div>
       <div style="padding:6px 2px 4px;font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:.06em">Carburante alla consegna *</div>
@@ -3153,7 +3234,7 @@ function bExpense(body,d){
       <div class="ios-fg">
         <div class="ios-f"><label>Descrizione</label><input id="f-exp-desc" placeholder="Es: Cambio olio…" value="${esc(d?.descrizione||'')}"></div>
         <div class="ios-f"><label>Costo (€) *</label><input id="f-exp-costo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.costo||''}"></div>
-        <div class="ios-f"><label>Data *</label><input id="f-exp-data" type="date" value="${d?.data||today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data *</label>${dateSelectHTML('f-exp-data', d?.data||today)}</div>
         <div class="ios-f"><label>Fornitore</label>
           <select id="f-exp-sup">
             <option value="">Nessuno</option>
@@ -3189,7 +3270,7 @@ function bExpense(body,d){
             ${venditeVeicolo.map(s=>{const c2=DATA.clienti.find(x=>x.id===s.customer_id)||{};return`<option value="${s.id}"${d?.garanzia_sale_id===s.id?' selected':''}>Vendita ${fD(s.data)} — ${nomeAnagrafica(c2)}</option>`;}).join('')}
           </select>
         </div>`:''}
-        <div class="ios-f"><label>Scade il</label><input id="f-exp-garanzia-scad" type="date" value="${d?.garanzia_scadenza||''}" style="text-align:left"></div>
+        <div class="ios-f"><label>Scade il</label>${dateSelectHTML('f-exp-garanzia-scad', d?.garanzia_scadenza||'')}</div>
       </div>
       <p style="font-size:11px;color:var(--label3);padding:4px 2px">Collega la garanzia al cliente e al contratto di vendita per tracciabilità completa.</p>
     </div>
@@ -3675,7 +3756,7 @@ function bReminder(body,d){
       </select></div>
       <div class="ios-f"><label>Descrizione</label><input id="f-rem-desc" placeholder="Es: Rinnovo assicurazione Panda" value="${esc(d?.descrizione||'')}"></div>
       <div class="ios-f"><label>Importo €</label><input id="f-rem-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${esc(d?.importo||'')}"></div>
-      <div class="ios-f"><label>Scadenza *</label><input id="f-rem-data" type="date" value="${d?.data_scadenza||today}" style="text-align:left"></div>
+      <div class="ios-f"><label>Scadenza *</label>${dateSelectHTML('f-rem-data', d?.data_scadenza||today)}</div>
     </div></div>
 
     <div id="f-rem-rif-section" style="${isGen?'display:none':''}">
@@ -4069,7 +4150,7 @@ function bDanno(body,d){
     <div class="fsec"><div class="fsec-title">Veicolo e data</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Veicolo *</label><select id="f-d-vid"><option value="">Seleziona…</option>${vl.map(v=>`<option value="${v.id}"${d?.vehicle_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Data *</label><input id="f-d-data" type="date" value="${d?.data||today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data *</label>${dateSelectHTML('f-d-data', d?.data||today)}</div>
         <div class="ios-f"><label>Cliente</label><select id="f-d-cid"><option value="">Nessuno</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
       </div>
     </div>
@@ -4732,7 +4813,7 @@ function bPayment(body,d){
           <option value="tasse">Tasse/Bolli</option>
           <option value="altro">Altro</option>
         </select></div>
-        <div class="ios-f"><label>Data *</label><input id="f-pay-data" type="date" value="${today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data *</label>${dateSelectHTML('f-pay-data', today)}</div>
         <div class="ios-f ta" style="min-height:auto"><label>Descrizione</label><textarea id="f-pay-desc" placeholder="Nota opzionale…" style="min-height:50px"></textarea></div>
       </div>
     </div>
@@ -4832,7 +4913,7 @@ function bCompanyCost(body,d){
           <option value="variabile">Variabile</option>
         </select></div>
         <div class="ios-f"><label>Importo (€) *</label><input id="f-cc-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="ios-f"><label>Data *</label><input id="f-cc-data" type="date" value="${today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Data *</label>${dateSelectHTML('f-cc-data', today)}</div>
         <div class="ios-f ta" style="min-height:auto"><label>Descrizione</label><textarea id="f-cc-desc" placeholder="Dettagli…" style="min-height:50px"></textarea></div>
       </div>
     </div>
