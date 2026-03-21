@@ -2,7 +2,7 @@
 <html lang="it" data-theme="dark">
 <head>
 <meta charset="UTF-8"/>
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, interactive-widget=resizes-content"/>
 <title>D&amp;D DedCar — Gestionale</title>
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='68' x='50' text-anchor='middle' font-size='52' font-family='Inter,Arial,sans-serif' font-weight='700' fill='white'>D</text></svg>">
 <link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='20' fill='%232563eb'/><text y='68' x='50' text-anchor='middle' font-size='52' font-family='Inter,Arial,sans-serif' font-weight='700' fill='white'>D</text></svg>">
@@ -91,49 +91,225 @@
    BASE
 ══════════════════════════════════════ */
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
-html,body{height:100%;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
+html{height:-webkit-fill-available}
+html,body{height:100%;min-height:-webkit-fill-available;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}
 body{
   font-family:'Inter',-apple-system,'Helvetica Neue',sans-serif;
   font-size:15px; line-height:1.5;
   background:var(--bg); color:var(--label);
   transition:background var(--t),color var(--t);
 }
-#app{display:flex;flex-direction:column;height:100dvh}
 ::-webkit-scrollbar{width:4px;height:4px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:var(--bg3);border-radius:2px}
 
 /* ══════════════════════════════════════
-   TAB BAR
+   HAMBURGER MENU + DRAWER SIDEBAR
 ══════════════════════════════════════ */
-.tab-bar{
-  display:flex;flex-shrink:0;
-  background:var(--bar-bg);
-  backdrop-filter:blur(20px) saturate(160%);
-  -webkit-backdrop-filter:blur(20px) saturate(160%);
-  border-top:1px solid var(--sep);
-  padding:0 4px;
-  padding-bottom:env(safe-area-inset-bottom);
-}
-.tab-btn{
-  flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;
-  padding:9px 2px 6px;background:none;border:none;cursor:pointer;
-  color:var(--label3);font-size:10px;font-weight:500;
-  -webkit-tap-highlight-color:transparent;
-  transition:color var(--t);min-width:0;position:relative;
-}
-.tab-btn svg{width:20px;height:20px;stroke-width:1.8;transition:transform .1s}
-.tab-btn.active{color:var(--blue)}
-.tab-btn.active svg{transform:scale(1.08)}
-.tab-label{font-size:9.5px;font-weight:600;white-space:nowrap;letter-spacing:.01em}
 
+/* App: colonna unica, la sidebar è overlay */
+#app{
+  display:flex;
+  flex-direction:column;
+  height:100dvh;
+  height:-webkit-fill-available;
+  position:relative;
+}
+
+/* ── Hamburger button (sempre visibile in alto a sinistra) ── */
+.hamburger-btn{
+  position:fixed;
+  top:calc(env(safe-area-inset-top) + 10px);
+  left:12px;
+  width:38px;height:38px;
+  border-radius:10px;
+  background:var(--bg1);
+  border:1px solid var(--sep);
+  box-shadow:0 2px 8px rgba(0,0,0,.08);
+  display:flex;flex-direction:column;
+  align-items:center;justify-content:center;
+  gap:4px;
+  cursor:pointer;
+  z-index:91;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:background var(--t),box-shadow var(--t);
+}
+.hamburger-btn:hover{background:var(--bg2);}
+.hamburger-btn:active{transform:scale(.93);}
+.hb-line{
+  width:16px;height:2px;
+  background:var(--label);
+  border-radius:2px;
+  transition:transform .22s cubic-bezier(.4,0,.2,1),
+             opacity .22s,
+             width .22s;
+  transform-origin:center;
+}
+/* Animazione hamburger → X */
+#sidebar.open .hb-line:nth-child(1){transform:translateY(6px) rotate(45deg);}
+#sidebar.open .hb-line:nth-child(2){opacity:0;width:0;}
+#sidebar.open .hb-line:nth-child(3){transform:translateY(-6px) rotate(-45deg);}
+
+/* Badge urgente sull'hamburger */
+.hb-badge{
+  position:absolute;
+  top:5px;right:5px;
+  width:8px;height:8px;
+  background:var(--red);
+  border-radius:50%;
+  display:none;
+  border:1.5px solid var(--bg1);
+}
+.hb-badge.visible{display:block;}
+
+/* ── Overlay scuro dietro la sidebar ── */
+#sidebar-overlay{
+  display:none;
+  position:fixed;inset:0;
+  background:rgba(0,0,0,.45);
+  z-index:92;
+  backdrop-filter:blur(2px);
+  -webkit-backdrop-filter:blur(2px);
+  animation:fadeIn .2s ease;
+}
+#sidebar-overlay.visible{display:block;}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+
+/* ── Drawer sidebar ── */
+.tab-bar{
+  position:fixed;
+  top:0;left:0;bottom:0;
+  width:260px;
+  background:var(--bg1);
+  border-right:none;
+  box-shadow:4px 0 32px rgba(0,0,0,.2);
+  display:flex;
+  flex-direction:column;
+  z-index:93;
+  transform:translateX(-100%);
+  transition:transform .28s cubic-bezier(.4,0,.2,1);
+  padding-top:env(safe-area-inset-top);
+  padding-bottom:env(safe-area-inset-bottom);
+  will-change:transform;
+  overflow:hidden;
+}
+.tab-bar.open{
+  transform:translateX(0);
+}
+
+/* ── Sidebar header ── */
+.sidebar-header{
+  display:flex;align-items:center;justify-content:space-between;
+  padding:16px 14px 14px 18px;
+  border-bottom:1px solid var(--sep);
+  flex-shrink:0;
+  min-height:60px;
+}
+.sidebar-logo-wrap{
+  display:flex;align-items:center;gap:10px;
+}
+.sidebar-logo{
+  width:34px;height:34px;flex-shrink:0;
+  background:var(--accent);border-radius:9px;
+  display:flex;align-items:center;justify-content:center;
+  color:#fff;font-weight:800;font-size:15px;
+}
+.sidebar-brand{
+  font-size:14px;font-weight:700;color:var(--label);
+  letter-spacing:-.2px;line-height:1.2;
+}
+.sidebar-close{
+  width:30px;height:30px;
+  border-radius:8px;
+  background:var(--bg2);
+  border:1px solid var(--sep);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;
+  color:var(--label3);
+  flex-shrink:0;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:background var(--t),color var(--t);
+}
+.sidebar-close:hover{background:var(--bg3);color:var(--label);}
+.sidebar-close svg{width:16px;height:16px;}
+
+/* ── Nav items ── */
+.sidebar-nav{
+  flex:1;
+  overflow-y:auto;
+  padding:10px 8px;
+}
+.sidebar-nav::-webkit-scrollbar{display:none}
+
+/* Separator label */
+.sidebar-sep{
+  font-size:10px;font-weight:700;
+  text-transform:uppercase;letter-spacing:.08em;
+  color:var(--label3);
+  padding:12px 12px 4px;
+}
+
+.tab-btn{
+  width:100%;
+  display:flex;flex-direction:row;align-items:center;gap:12px;
+  padding:11px 12px;
+  background:none;border:none;cursor:pointer;
+  color:var(--label2);font-size:14px;font-weight:500;
+  -webkit-tap-highlight-color:transparent;
+  touch-action:manipulation;
+  transition:color var(--t),background var(--t);
+  border-radius:10px;
+  text-align:left;font-family:inherit;
+  position:relative;
+  margin-bottom:2px;
+}
+.tab-btn:hover{background:var(--bg2);color:var(--label);}
+.tab-btn.active{
+  color:var(--blue);
+  background:var(--blue-bg);
+  font-weight:600;
+}
+.tab-btn svg{
+  width:20px;height:20px;stroke-width:1.8;
+  flex-shrink:0;
+  color:inherit;
+}
+.tab-label{
+  font-size:14px;
+  flex:1;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+
+/* Badge scadenze nella sidebar */
+.tab-badge{
+  background:var(--red);color:#fff;
+  border-radius:10px;font-size:10px;font-weight:700;
+  padding:1px 7px;min-width:18px;text-align:center;
+  flex-shrink:0;
+}
+
+/* ── Sidebar footer ── */
+.sidebar-footer{
+  border-top:1px solid var(--sep);
+  padding:10px 8px;
+  flex-shrink:0;
+}
+
+/* ── Offset per hamburger button ── */
+/* Space for hamburger button */
+.nav-bar{padding-left:58px;}
 /* ══════════════════════════════════════
    PAGES & NAV BAR
 ══════════════════════════════════════ */
-.page{display:none;flex:1;flex-direction:column;overflow:hidden}
+.page{display:none;flex:1;flex-direction:column;overflow:hidden;min-width:0}
 .page.active{display:flex;animation:pgIn .2s ease both}
-@keyframes pgIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
-.scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:0 16px 40px}
+@keyframes pgIn{from{opacity:0}to{opacity:1}}
+.scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;padding:0 16px 40px;pointer-events:auto;}
+.detail-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;pointer-events:auto;}
 
 .nav-bar{
   flex-shrink:0;
@@ -143,7 +319,7 @@ body{
   border-bottom:1px solid var(--sep);
   padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
 }
-.nav-bar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
+.nav-bar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;min-height:36px}
 .nav-large-title{font-size:24px;font-weight:700;letter-spacing:-.4px;color:var(--label)}
 .nav-right{display:flex;align-items:center;gap:8px}
 
@@ -262,13 +438,18 @@ body{
    FAB
 ══════════════════════════════════════ */
 .fab{
-  position:fixed;right:18px;bottom:calc(72px + env(safe-area-inset-bottom));
+  position:fixed;right:18px;bottom:24px;
   width:48px;height:48px;border-radius:50%;
   background:var(--accent);border:none;cursor:pointer;
   display:flex;align-items:center;justify-content:center;
-  box-shadow:0 4px 16px rgba(37,99,235,.4);z-index:40;
+  box-shadow:0 4px 16px rgba(37,99,235,.4);
+  z-index:40; /* > sidebar(10), < sheet(200) */
   -webkit-tap-highlight-color:transparent;
   transition:transform .1s,box-shadow .1s;
+  touch-action:manipulation;
+  pointer-events:all; /* garantisce cliccabilità anche con overflow:hidden sui parent */
+  -webkit-transform:translateZ(0); /* crea stacking context proprio su iOS */
+  transform:translateZ(0);
 }
 .fab:hover{box-shadow:0 6px 20px rgba(37,99,235,.5)}
 .fab:active{transform:scale(.9)}
@@ -281,7 +462,7 @@ body{
 .ios-search svg{position:absolute;left:10px;top:50%;transform:translateY(-50%);width:15px;height:15px;stroke:var(--label3);pointer-events:none}
 .ios-search input{
   width:100%;background:var(--bg2);border:1px solid var(--sep);
-  border-radius:var(--r);color:var(--label);font-size:14px;
+  border-radius:var(--r);color:var(--label);font-size:16px;
   padding:9px 12px 9px 33px;outline:none;font-family:inherit;
   transition:border-color var(--t);
 }
@@ -319,6 +500,8 @@ body{
   max-height:93dvh;overflow-y:auto;
   animation:sheetUp .28s cubic-bezier(.32,.72,0,1);
   padding-bottom:env(safe-area-inset-bottom);
+  will-change:transform;
+  -webkit-overflow-scrolling:touch;
 }
 @keyframes sheetUp{from{transform:translateY(100%);opacity:.6}to{transform:translateY(0);opacity:1}}
 .sheet-grabber{width:32px;height:4px;background:var(--bg3);border-radius:2px;margin:12px auto 0}
@@ -349,14 +532,25 @@ body{
 .ios-f label{font-size:14px;color:var(--label);width:108px;flex-shrink:0;font-weight:500}
 .ios-f input,.ios-f select{
   flex:1;background:transparent;border:none;outline:none;
-  color:var(--label);font-size:14px;font-family:inherit;
-  text-align:right;-webkit-appearance:none;min-width:0;
+  color:var(--label);font-size:16px;font-family:inherit;
+  text-align:right;-webkit-appearance:none;appearance:none;min-width:0;
 }
 .ios-f input::placeholder{color:var(--label3)}
+/* iOS Safari: date/time picker non rispetta text-align:right — override */
+.ios-f input[type="date"],
+.ios-f input[type="time"],
+.ios-f input[type="datetime-local"]{
+  text-align:left;
+  -webkit-text-align:left;
+  flex:1;
+  min-width:0;
+  /* Evita che iOS ridimensioni il testo */
+  font-size:max(16px, 1em);
+}
 .ios-f select option{background:var(--bg2)}
 .ios-f textarea{
   flex:1;background:transparent;border:none;outline:none;
-  color:var(--label);font-size:13px;font-family:inherit;
+  color:var(--label);font-size:16px;font-family:inherit;
   resize:none;padding:12px 0;line-height:1.55;min-height:75px;
 }
 .ios-f.ta{align-items:flex-start;padding:4px 14px}
@@ -383,7 +577,7 @@ body{
 .ios-btn.neutral:hover{background:var(--bg3)}
 .ios-btn.success{background:var(--green-bg);color:var(--green)}
 .ios-btn.warn{background:var(--orange-bg);color:var(--orange)}
-.ios-btn:disabled{opacity:.38;pointer-events:none}
+.ios-btn:disabled{opacity:.38;pointer-events:none;cursor:not-allowed}
 .ios-btn svg{width:17px;height:17px;stroke-width:2}
 .btn-stack{display:flex;flex-direction:column;gap:10px;margin-top:4px}
 
@@ -393,10 +587,10 @@ body{
 .detail-view{
   position:fixed;inset:0;background:var(--bg);z-index:100;
   display:none;flex-direction:column;
-  transform:translateX(100%);
-  transition:transform .32s cubic-bezier(.32,.72,0,1);
+  /* iOS: usa visibility invece di display per animazioni fluide */
 }
-.detail-view.open{display:flex;transform:translateX(0)}
+.detail-view.open{display:flex;animation:slideIn .32s cubic-bezier(.32,.72,0,1) both}
+@keyframes slideIn{from{transform:translateX(100%);opacity:.8}to{transform:translateX(0);opacity:1}}
 .detail-nav{
   display:flex;align-items:center;gap:8px;
   padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
@@ -410,7 +604,7 @@ body{
 }
 .back-btn svg{width:18px;height:18px;stroke:currentColor;stroke-width:2.2}
 .detail-title{font-size:16px;font-weight:600;flex:1;text-align:center;color:var(--label)}
-.detail-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px}
+.detail-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;pointer-events:auto;}
 
 /* HERO CARD */
 .hero-card{
@@ -512,7 +706,7 @@ body{
 /* ══════════════════════════════════════
    CALENDAR
 ══════════════════════════════════════ */
-.cal-wrap{overflow-x:auto;-webkit-overflow-scrolling:touch;border-radius:var(--r);background:var(--bg1);border:1px solid var(--sep)}
+.cal-wrap{overflow-x:auto;overflow-y:visible;-webkit-overflow-scrolling:touch;border-radius:var(--r);background:var(--bg1);border:1px solid var(--sep)}
 .cal-table{border-collapse:collapse;min-width:100%}
 .cal-table th{font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:.04em;padding:8px 4px;white-space:nowrap;background:var(--bg2);position:sticky;top:0;z-index:2;text-align:center;border-bottom:1px solid var(--sep)}
 .cal-table th.veh-col{font-size:11px;color:var(--label2);text-transform:none;letter-spacing:0;min-width:80px;max-width:100px;left:0;z-index:3;text-align:left;padding-left:10px}
@@ -661,7 +855,7 @@ body{
 /* ══════════════════════════════════════
    DESTINATION CHANGE / CONFIRM MODALS
 ══════════════════════════════════════ */
-.dest-change-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);z-index:350;display:none;align-items:flex-end}
+.dest-change-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);z-index:350;display:none;align-items:flex-end}
 .dest-change-modal.open{display:flex}
 .dest-change-box{width:100%;background:var(--bg1);border-radius:var(--r-xl) var(--r-xl) 0 0;border:1px solid var(--sep);border-bottom:none;padding:20px 20px calc(16px + env(safe-area-inset-bottom));animation:sheetUp .25s ease}
 
@@ -728,6 +922,28 @@ body{
 .kpi-card{transition:box-shadow var(--t),transform .1s}
 .kpi-card:active{transform:scale(.98)}
 
+
+/* iOS: elimina 300ms click delay su tutti gli elementi interattivi */
+a,button,select,input,textarea,label,
+.ios-btn,.ios-row,.tab-btn,.pill,.fab,
+.km-opt,.carb-btn,.pay-method-btn,.pay-tipo-btn,
+.ddt-card,.ana-btn,.role-pill,.sg-head,
+.cal-week-nav button,.cal-today-btn,.theme-toggle{
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+}
+/* iOS: smooth momentum scroll su tutti gli scroll container */
+.scroll-body,.detail-scroll,.sheet,.cal-wrap,.filter-pills{
+  -webkit-overflow-scrolling:touch;
+  overscroll-behavior:contain;
+}
+/* iOS: stabilizza position:fixed — MA NON su login-screen che ha bottoni interattivi */
+.detail-view,.sheet-overlay,.confirm-sheet,
+.loading-screen,#pdf-frame,
+.dest-change-modal{
+  -webkit-transform:translateZ(0);
+  transform:translateZ(0);
+}
 /* Active tab underline accent */
 .tab-btn.active .tab-label::after{
   content:'';display:block;width:16px;height:2px;
@@ -779,13 +995,15 @@ input[type="search"]::-webkit-search-cancel-button{
     <div class="fsec">
       <div class="fsec-title">Accedi al tuo account</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Username</label><input id="login-user" placeholder="admin" autocomplete="username" autocapitalize="none" spellcheck="false"></div>
-        <div class="ios-f"><label>Password</label><input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password"></div>
+        <div class="ios-f"><label>Username</label><input id="login-user" placeholder="admin" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" style="font-size:16px"></div>
+        <div class="ios-f"><label>Password</label><input id="login-pass" type="password" placeholder="••••••••" autocomplete="current-password" style="font-size:16px"></div>
       </div>
     </div>
-    <button class="ios-btn primary" onclick="doLogin()" id="login-btn">Accedi</button>
+    <button id="login-btn"
+      style="display:block;width:100%;padding:16px;margin-top:8px;background:#2563eb;color:#fff;border:none;border-radius:10px;font-size:17px;font-weight:700;font-family:inherit;cursor:pointer;-webkit-appearance:none;touch-action:manipulation;-webkit-tap-highlight-color:transparent;position:relative;z-index:10;"
+      onclick="doLogin()">Accedi</button>
   </div>
-  <div class="login-ver" style="margin-top:20px">D&amp;D DedCar · Gestionale interno · Accesso riservato</div>
+  <div class="login-ver" style="margin-top:20px">D&amp;D DedCar · Accesso riservato</div>
 </div>
 
 <!-- LOADING -->
@@ -806,7 +1024,7 @@ input[type="search"]::-webkit-search-cancel-button{
       <div class="nav-large-title" id="nav-company-name">D&D DedCar</div>
       <div class="nav-right">
         <div class="sync-pill"><span class="sync-dot" id="sync-dot"></span><span id="sync-txt">—</span></div>
-        <div class="user-pill" onclick="goTo('settings',document.querySelector('[onclick*=settings]'))">
+        <div class="user-pill" onclick="goTo('settings',document.getElementById('nav-settings'))">
           <div class="user-avatar" id="user-avatar-nav">?</div>
           <div class="user-name" id="user-name-nav">—</div>
         </div>
@@ -928,47 +1146,107 @@ input[type="search"]::-webkit-search-cancel-button{
 <div class="page" id="pg-scadenze">
   <div class="nav-bar">
     <div class="nav-bar-top"><div class="nav-large-title">Scadenze</div></div>
+    <div class="filter-pills" id="scad-filter-pills">
+      <button class="pill on" onclick="setScadFilter('tutti',this)">Tutti</button>
+      <button class="pill" onclick="setScadFilter('veicolo',this)">🚗 Veicoli</button>
+      <button class="pill" onclick="setScadFilter('assicurazione',this)">🛡 Assicurazione</button>
+      <button class="pill" onclick="setScadFilter('bollo',this)">📋 Bollo</button>
+      <button class="pill" onclick="setScadFilter('revisione',this)">🔬 Revisione</button>
+      <button class="pill" onclick="setScadFilter('affitto',this)">🏠 Affitto</button>
+      <button class="pill" onclick="setScadFilter('generale',this)">🏢 Generali</button>
+    </div>
   </div>
   <div class="scroll-body" style="padding-top:12px" id="scadenze-body"></div>
   <button class="fab" onclick="openSheet('reminder')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button>
 </div>
 
-<!-- TAB BAR -->
-<nav class="tab-bar">
-  <button class="tab-btn active" onclick="goTo('dash',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
-    <span class="tab-label">Home</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('clienti',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-    <span class="tab-label">Clienti</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('veicoli',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
-    <span class="tab-label">Veicoli</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('docs',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
-    <span class="tab-label">Documenti</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('gestione',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-    <span class="tab-label">Gestione</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('finanze',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-    <span class="tab-label">Finanze</span>
-  </button>
-  <button class="tab-btn" id="tab-scadenze" onclick="goTo('scadenze',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
-    <span class="tab-label">Scadenze</span>
-  </button>
-  <button class="tab-btn" onclick="goTo('settings',this)">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-    <span class="tab-label">Impostaz.</span>
-  </button>
+<!-- HAMBURGER BUTTON (sempre visibile, posizione fixed) -->
+<button class="hamburger-btn" id="hamburger-btn" onclick="toggleSidebar()" aria-label="Menu" title="Menu">
+  <span class="hb-line"></span>
+  <span class="hb-line"></span>
+  <span class="hb-line"></span>
+  <span class="hb-badge" id="hb-badge"></span>
+</button>
+
+<!-- OVERLAY (click per chiudere) -->
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- DRAWER SIDEBAR -->
+<nav class="tab-bar" id="sidebar" aria-label="Navigazione principale">
+
+  <!-- Header -->
+  <div class="sidebar-header">
+    <div class="sidebar-logo-wrap">
+      <div class="sidebar-logo" id="sidebar-logo-img">D</div>
+      <div>
+        <div class="sidebar-brand" id="sidebar-brand-name">D&amp;D DedCar</div>
+        <div style="font-size:10px;color:var(--label3);margin-top:1px">Gestionale</div>
+      </div>
+    </div>
+    <button class="sidebar-close" onclick="toggleSidebar()" title="Chiudi menu">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><path d="M18 6 6 18M6 6l12 12"/></svg>
+    </button>
+  </div>
+
+  <!-- Nav -->
+  <div class="sidebar-nav">
+
+    <div class="sidebar-sep">Principale</div>
+
+    <button class="tab-btn active" id="nav-dash" onclick="goTo('dash',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3" y="3" width="7" height="7" rx="1.5"/><rect x="14" y="3" width="7" height="7" rx="1.5"/><rect x="3" y="14" width="7" height="7" rx="1.5"/><rect x="14" y="14" width="7" height="7" rx="1.5"/></svg>
+      <span class="tab-label">Dashboard</span>
+    </button>
+
+    <button class="tab-btn" id="nav-veicoli" onclick="goTo('veicoli',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
+      <span class="tab-label">Veicoli</span>
+    </button>
+
+    <button class="tab-btn" id="nav-clienti" onclick="goTo('clienti',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+      <span class="tab-label">Clienti</span>
+    </button>
+
+    <button class="tab-btn" id="nav-docs" onclick="goTo('docs',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="9" y1="13" x2="15" y2="13"/><line x1="9" y1="17" x2="13" y2="17"/></svg>
+      <span class="tab-label">Contratti</span>
+    </button>
+
+    <button class="tab-btn" id="nav-scadenze" onclick="goTo('scadenze',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+      <span class="tab-label">Scadenze</span>
+      <span class="tab-badge" id="tab-badge-scad" style="display:none">0</span>
+    </button>
+
+    <div class="sidebar-sep">Gestione</div>
+
+    <button class="tab-btn" id="nav-gestione" onclick="goTo('gestione',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
+      <span class="tab-label">Gestione</span>
+    </button>
+
+    <button class="tab-btn" id="nav-finanze" onclick="goTo('finanze',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+      <span class="tab-label">Finanze</span>
+    </button>
+
+  </div>
+
+  <!-- Footer -->
+  <div class="sidebar-footer">
+    <button class="tab-btn" id="nav-settings" onclick="goTo('settings',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      <span class="tab-label">Impostazioni</span>
+    </button>
+    <button class="tab-btn" onclick="goTo('settings',document.getElementById('nav-settings'))">
+      <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);flex-shrink:0;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700;color:#fff" id="sidebar-user-av">?</div>
+      <span class="tab-label" id="sidebar-user-name">—</span>
+    </button>
+  </div>
+
 </nav>
-</div>
+</div><!-- close #app -->
 
 <!-- SHEET -->
 <div class="sheet-overlay" id="sheet-overlay" onclick="closeSheet(event)">
@@ -991,6 +1269,8 @@ input[type="search"]::-webkit-search-cancel-button{
   </div>
   <div class="detail-scroll" id="detail-body"></div>
 </div>
+<!-- SIDEBAR OVERLAY (mobile) -->
+<div id="sidebar-overlay" onclick="toggleSidebar()"></div>
 
 <!-- CONFIRM -->
 <div class="confirm-sheet" id="confirm-sheet">
@@ -1118,11 +1398,32 @@ async function syncUp(){
 }
 
 /* ══════════════════════ NAV ══════════════════════ */
+/* ── Hamburger / Sidebar ── */
+function toggleSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  const isOpen=sb?.classList.toggle('open');
+  if(ov)ov.classList.toggle('visible',!!isOpen);
+  // Blocca scroll del body quando sidebar aperta
+  document.body.style.overflow=isOpen?'hidden':'';
+}
+
+function closeSidebar(){
+  const sb=document.getElementById('sidebar');
+  const ov=document.getElementById('sidebar-overlay');
+  sb?.classList.remove('open');
+  ov?.classList.remove('visible');
+  document.body.style.overflow='';
+}
+
 function goTo(p,btn){
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));
-  document.getElementById('pg-'+p).classList.add('active');
-  btn.classList.add('active');
+  const pg=document.getElementById('pg-'+p);
+  if(pg)pg.classList.add('active');
+  if(btn)btn.classList.add('active');
+  // Chiudi sempre la sidebar dopo la navigazione
+  closeSidebar();
   if(p==='settings')renderSettings();
   else if(p==='docs')renderDocs();
   else if(p==='gestione')renderGest();
@@ -1130,7 +1431,44 @@ function goTo(p,btn){
   else if(p==='finanze')renderFinanze();
   else renderAll();
 }
+
 function renderAll(){renderDash();renderClienti();renderVeicoli();}
+
+function updateUserNav(){
+  if(!CURRENT_USER)return;
+  const ini=(CURRENT_USER.username||'?')[0].toUpperCase();
+  // Sidebar user avatar + nome
+  const av=document.getElementById('sidebar-user-av');
+  const nm=document.getElementById('sidebar-user-name');
+  if(av)av.textContent=ini;
+  if(nm)nm.textContent=CURRENT_USER.username||'—';
+  // Nav bar top (legacy, potrebbe non esistere in tutte le pagine)
+  const navAv=document.getElementById('user-avatar-nav');
+  const navNm=document.getElementById('user-name-nav');
+  if(navAv)navAv.textContent=ini;
+  if(navNm)navNm.textContent=CURRENT_USER.username||'—';
+  // Sidebar brand dal nome azienda
+  const brand=document.getElementById('sidebar-brand-name');
+  if(brand)brand.textContent=SETTINGS.company_name||'D&D DedCar';
+  // Logo: se caricato mostra l'immagine
+  const logoEl=document.getElementById('sidebar-logo-img');
+  if(logoEl&&SETTINGS.logo_base64){
+    logoEl.innerHTML=`<img src="${SETTINGS.logo_base64}" style="width:34px;height:34px;object-fit:contain;border-radius:9px">`;
+  }
+}
+
+function updateScadenzeBadge(){
+  const urgent=DATA.reminders.filter(r=>r.stato!=='completato'&&remStatus(r)!=='ok').length;
+  // Badge nella sidebar
+  const badge=document.getElementById('tab-badge-scad');
+  if(badge){
+    badge.style.display=urgent>0?'':'none';
+    badge.textContent=urgent;
+  }
+  // Pallino rosso sull'hamburger button
+  const hbBadge=document.getElementById('hb-badge');
+  if(hbBadge)hbBadge.classList.toggle('visible',urgent>0);
+}
 
 function renderDash(){
   const{veicoli:V,clienti:C,noleggi:N,sales:S,expenses:E,danni:D}=DATA;
@@ -1248,16 +1586,179 @@ function toast(msg,type='ok'){
 
 /* ══════════════════════ HELPERS ══════════════════════ */
 const uid=()=>(crypto.randomUUID?crypto.randomUUID():Math.random().toString(36).slice(2)+Date.now());
-const fD=d=>{if(!d)return'—';try{return new Date(d+'T00:00:00').toLocaleDateString('it-IT');}catch{return d;}};
+const fD=d=>{
+  if(!d)return'—';
+  try{
+    // Gestisce sia stringhe YYYY-MM-DD che timestamp numerici
+    if(typeof d==='number'||/^\d{10,}$/.test(String(d))){
+      return new Date(parseInt(d)).toLocaleDateString('it-IT');
+    }
+    // Stringa data: forza T00:00:00 per evitare UTC shift su Safari
+    const s=String(d).trim();
+    return new Date(s.includes('T')?s:s+'T00:00:00').toLocaleDateString('it-IT');
+  }catch{return String(d);}
+};
 const fN=n=>{if(n==null||n==='')return'—';return Number(n).toLocaleString('it-IT');};
 const fE=n=>{if(!n&&n!==0)return'€0';return'€'+Number(n).toLocaleString('it-IT');};
-const esc=s=>(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');
+const esc=s=>{const t=(s==null?'':String(s));return t.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/"/g,'&quot;');};
 const v=id=>document.getElementById(id)?.value?.trim()||'';
 const upsert=(coll,r)=>{const i=DATA[coll].findIndex(x=>x.id===r.id);if(i>=0)DATA[coll][i]=r;else DATA[coll].push(r);};
 const SI={disponibile:'b-green',noleggiato:'b-blue',manutenzione:'b-orange',venduto:'b-dim'};
 const SICOL={disponibile:'var(--green-bg)',noleggiato:'var(--blue-bg)',manutenzione:'var(--orange-bg)',venduto:'var(--bg3)'};
 
 /* ══════════════════════ CODICE FISCALE ══════════════════════ */
+/* ═══════════════════════════════════════════════
+   DATASET COMUNI ITALIANI CON CODICI CATASTALI
+   Fonte: ISTAT / Agenzia delle Entrate
+═══════════════════════════════════════════════ */
+const CF_COMUNI={
+"AG":[{n:"Agrigento",c:"G273"},{n:"Alessandria della Rocca",c:"A181"},{n:"Aragona",c:"A351"},{n:"Bivona",c:"A896"},{n:"Burgio",c:"B275"},{n:"Caltabellotta",c:"B427"},{n:"Camastra",c:"B461"},{n:"Cammarata",c:"B486"},{n:"Campobello di Licata",c:"B521"},{n:"Canicattì",c:"B602"},{n:"Casteltermini",c:"C275"},{n:"Castrofilippo",c:"C341"},{n:"Favara",c:"D514"},{n:"Grotte",c:"E209"},{n:"Lampedusa e Linosa",c:"E430"},{n:"Licata",c:"E573"},{n:"Menfi",c:"F126"},{n:"Montallegro",c:"F414"},{n:"Montevago",c:"F657"},{n:"Naro",c:"F848"},{n:"Palma di Montechiaro",c:"G282"},{n:"Porto Empedocle",c:"G924"},{n:"Racalmuto",c:"H148"},{n:"Raffadali",c:"H159"},{n:"Ravanusa",c:"H194"},{n:"Ribera",c:"H269"},{n:"Sambuca di Sicilia",c:"H743"},{n:"Santa Elisabetta",c:"I185"},{n:"Santa Margherita di Belice",c:"I224"},{n:"Sciacca",c:"I533"},{n:"Siculiana",c:"I723"}],
+"AL":[{n:"Acqui Terme",c:"A052"},{n:"Alessandria",c:"A182"},{n:"Casale Monferrato",c:"B885"},{n:"Novi Ligure",c:"F965"},{n:"Ovada",c:"G197"},{n:"Tortona",c:"L304"},{n:"Valenza",c:"L570"}],
+"AN":[{n:"Ancona",c:"A271"},{n:"Fabriano",c:"D451"},{n:"Falconara Marittima",c:"D472"},{n:"Jesi",c:"E388"},{n:"Loreto",c:"E456"},{n:"Osimo",c:"G157"},{n:"Senigallia",c:"I608"}],
+"AO":[{n:"Aosta",c:"A326"},{n:"Courmayeur",c:"D012"},{n:"Saint-Vincent",c:"I229"}],
+"AP":[{n:"Ascoli Piceno",c:"A462"},{n:"Grottammare",c:"E207"},{n:"San Benedetto del Tronto",c:"H769"}],
+"AQ":[{n:"L'Aquila",c:"A345"},{n:"Avezzano",c:"A515"},{n:"Sulmona",c:"I804"},{n:"Tagliacozzo",c:"L025"}],
+"AR":[{n:"Arezzo",c:"A390"},{n:"Bibbiena",c:"A851"},{n:"Cortona",c:"D077"},{n:"Monte San Savino",c:"F628"},{n:"Sansepolcro",c:"I156"}],
+"AT":[{n:"Asti",c:"A479"},{n:"Canelli",c:"B594"},{n:"Nizza Monferrato",c:"F902"}],
+"AV":[{n:"Avellino",c:"A509"},{n:"Ariano Irpino",c:"A399"},{n:"Atripalda",c:"A489"},{n:"Cervinara",c:"C556"},{n:"Montella",c:"F546"}],
+"BA":[{n:"Bari",c:"A662"},{n:"Altamura",c:"A225"},{n:"Barletta",c:"A734"},{n:"Bisceglie",c:"A883"},{n:"Bitonto",c:"A893"},{n:"Corato",c:"C983"},{n:"Gioia del Colle",c:"E038"},{n:"Giovinazzo",c:"E045"},{n:"Gravina in Puglia",c:"E155"},{n:"Mola di Bari",c:"F280"},{n:"Molfetta",c:"F284"},{n:"Monopoli",c:"F376"},{n:"Polignano a Mare",c:"G797"},{n:"Putignano",c:"H096"},{n:"Ruvo di Puglia",c:"H645"},{n:"Santeramo in Colle",c:"I330"},{n:"Terlizzi",c:"L109"},{n:"Valenzano",c:"L572"}],
+"BG":[{n:"Bergamo",c:"A794"},{n:"Albino",c:"A163"},{n:"Alzano Lombardo",c:"A246"},{n:"Brembate",c:"B139"},{n:"Calusco d'Adda",c:"B433"},{n:"Dalmine",c:"D245"},{n:"Ponte San Pietro",c:"G856"},{n:"Romano di Lombardia",c:"H509"},{n:"Seriate",c:"I628"},{n:"Treviglio",c:"L400"}],
+"BI":[{n:"Biella",c:"A859"},{n:"Cossato",c:"D094"},{n:"Valdilana",c:"L562"}],
+"BL":[{n:"Belluno",c:"A757"},{n:"Feltre",c:"D530"},{n:"Longarone",c:"E669"}],
+"BN":[{n:"Benevento",c:"A783"},{n:"Montesarchio",c:"F638"},{n:"Sant'Agata de' Goti",c:"I197"}],
+"BO":[{n:"Bologna",c:"A944"},{n:"Borgo Panigale",c:"B030"},{n:"Casalecchio di Reno",c:"B880"},{n:"Castel Maggiore",c:"C204"},{n:"Cesena",c:"C573"},{n:"Forlì",c:"D704"},{n:"Imola",c:"E289"},{n:"San Giovanni in Persiceto",c:"G467"},{n:"San Lazzaro di Savena",c:"H945"},{n:"Zola Predosa",c:"M185"}],
+"BR":[{n:"Brindisi",c:"B180"},{n:"Fasano",c:"D508"},{n:"Francavilla Fontana",c:"D761"},{n:"Mesagne",c:"F152"},{n:"Ostuni",c:"G187"},{n:"San Pietro Vernotico",c:"I115"},{n:"Taranto",c:"L049"}],
+"BS":[{n:"Brescia",c:"B157"},{n:"Chiari",c:"C618"},{n:"Concesio",c:"C948"},{n:"Desenzano del Garda",c:"D284"},{n:"Gardone Val Trompia",c:"D917"},{n:"Gavardo",c:"D941"},{n:"Lumezzane",c:"E743"},{n:"Manerbio",c:"E858"},{n:"Montichiari",c:"F471"},{n:"Palazzolo sull'Oglio",c:"G264"},{n:"Rezzato",c:"H253"},{n:"Rovato",c:"H598"},{n:"Salo'",c:"H717"},{n:"Sarezzo",c:"I433"}],
+"BT":[{n:"Andria",c:"A285"},{n:"Barletta",c:"A734"},{n:"Canosa di Puglia",c:"B619"},{n:"Margherita di Savoia",c:"E946"},{n:"Minervino Murge",c:"F220"},{n:"San Ferdinando di Puglia",c:"H839"},{n:"Spinazzola",c:"I908"},{n:"Trani",c:"L328"},{n:"Trinitapoli",c:"B915"}],
+"BZ":[{n:"Bolzano",c:"A952"},{n:"Bressanone",c:"B160"},{n:"Brunico",c:"B220"},{n:"Laives",c:"E420"},{n:"Merano",c:"F132"},{n:"Appiano sulla Strada del Vino",c:"A332"}],
+"CA":[{n:"Cagliari",c:"B354"},{n:"Assemini",c:"A474"},{n:"Capoterra",c:"B671"},{n:"Monserrato",c:"F383"},{n:"Quartu Sant'Elena",c:"H118"},{n:"Quartucciu",c:"H119"},{n:"Selargius",c:"I580"},{n:"Sestu",c:"I699"},{n:"Sinnai",c:"I752"}],
+"CB":[{n:"Campobasso",c:"B519"},{n:"Isernia",c:"E335"},{n:"Termoli",c:"L113"}],
+"CE":[{n:"Caserta",c:"B963"},{n:"Aversa",c:"A512"},{n:"Capua",c:"B715"},{n:"Maddaloni",c:"E791"},{n:"Marcianise",c:"E932"},{n:"Santa Maria Capua Vetere",c:"I247"}],
+"CH":[{n:"Chieti",c:"C632"},{n:"Francavilla al Mare",c:"D760"},{n:"Lanciano",c:"E435"},{n:"Ortona",c:"G141"},{n:"Pescara",c:"G482"},{n:"Vasto",c:"E372"}],
+"CL":[{n:"Caltanissetta",c:"B429"},{n:"Gela",c:"D960"},{n:"Niscemi",c:"F899"},{n:"Piazza Armerina",c:"G580"},{n:"Riesi",c:"H281"}],
+"CN":[{n:"Cuneo",c:"D205"},{n:"Alba",c:"A124"},{n:"Bra",c:"B111"},{n:"Fossano",c:"D742"},{n:"Mondovì",c:"F351"},{n:"Saluzzo",c:"H727"}],
+"CO":[{n:"Como",c:"C933"},{n:"Cantù",c:"B639"},{n:"Erba",c:"D416"},{n:"Mariano Comense",c:"E951"},{n:"Menaggio",c:"F120"}],
+"CR":[{n:"Cremona",c:"D150"},{n:"Casalmaggiore",c:"B898"},{n:"Crema",c:"D142"},{n:"Soresina",c:"I847"}],
+"CS":[{n:"Cosenza",c:"D086"},{n:"Corigliano-Rossano",c:"D007"},{n:"Castrovillari",c:"C349"},{n:"Rende",c:"H235"},{n:"Scalea",c:"I489"}],
+"CT":[{n:"Catania",c:"C351"},{n:"Acireale",c:"A028"},{n:"Adrano",c:"A056"},{n:"Belpasso",c:"A766"},{n:"Biancavilla",c:"A841"},{n:"Caltagirone",c:"B428"},{n:"Mascalucia",c:"F004"},{n:"Misterbianco",c:"F250"},{n:"Motta Sant'Anastasia",c:"F781"},{n:"Paternò",c:"G371"},{n:"Ramacca",c:"H168"},{n:"San Giovanni la Punta",c:"H922"},{n:"Scordia",c:"I549"}],
+"CZ":[{n:"Catanzaro",c:"C352"},{n:"Lamezia Terme",c:"M208"},{n:"Soverato",c:"I873"}],
+"EN":[{n:"Enna",c:"C342"},{n:"Piazza Armerina",c:"G580"},{n:"Troina",c:"L448"}],
+"FC":[{n:"Forlì",c:"D704"},{n:"Cesena",c:"C573"},{n:"Cesenatico",c:"C574"},{n:"Savignano sul Rubicone",c:"I472"},{n:"Bertinoro",c:"A809"},{n:"Borghi",c:"B001"},{n:"Castrocaro Terme e Terra del Sole",c:"C339"},{n:"Civitella di Romagna",c:"C778"},{n:"Dovadola",c:"D357"},{n:"Forlimpopoli",c:"D706"},{n:"Galeata",c:"D868"},{n:"Gambettola",c:"D899"},{n:"Gatteo",c:"D936"},{n:"Longiano",c:"E675"},{n:"Meldola",c:"F097"},{n:"Mercato Saraceno",c:"F139"},{n:"Modigliana",c:"F259"},{n:"Montiano",c:"F673"},{n:"Portico e San Benedetto",c:"G904"},{n:"Predappio",c:"H017"},{n:"Premilcuore",c:"H033"},{n:"Rocca San Casciano",c:"H437"},{n:"Roncofreddo",c:"H546"},{n:"San Mauro Pascoli",c:"I027"},{n:"Santa Sofia",c:"I309"},{n:"Sarsina",c:"I444"},{n:"Sogliano al Rubicone",c:"I779"},{n:"Tredozio",c:"L360"},{n:"Verghereto",c:"L762"}],
+"FE":[{n:"Ferrara",c:"D548"},{n:"Argenta",c:"A393"},{n:"Cento",c:"C469"},{n:"Comacchio",c:"C912"}],
+"FG":[{n:"Foggia",c:"D643"},{n:"Cerignola",c:"C514"},{n:"Lucera",c:"E716"},{n:"Manfredonia",c:"E885"},{n:"San Severo",c:"I158"},{n:"Vieste",c:"L858"}],
+"FI":[{n:"Firenze",c:"D612"},{n:"Bagno a Ripoli",c:"A552"},{n:"Campi Bisenzio",c:"B507"},{n:"Empoli",c:"D403"},{n:"Fiesole",c:"D575"},{n:"Greve in Chianti",c:"E169"},{n:"Impruneta",c:"E291"},{n:"Lastra a Signa",c:"E466"},{n:"Pontassieve",c:"G827"},{n:"Prato",c:"G999"},{n:"Scandicci",c:"B962"},{n:"Sesto Fiorentino",c:"I684"},{n:"Signa",c:"I728"}],
+"FM":[{n:"Fermo",c:"D542"},{n:"Porto San Giorgio",c:"G922"},{n:"Porto Sant'Elpidio",c:"G924"}],
+"FR":[{n:"Frosinone",c:"D810"},{n:"Alatri",c:"A121"},{n:"Anagni",c:"A269"},{n:"Cassino",c:"C034"},{n:"Ferentino",c:"D539"},{n:"Pontecorvo",c:"G838"},{n:"Sora",c:"I838"}],
+"GE":[{n:"Genova",c:"D969"},{n:"Arenzano",c:"A388"},{n:"Bogliasco",c:"A922"},{n:"Chiavari",c:"C621"},{n:"Lavagna",c:"E488"},{n:"Rapallo",c:"H183"},{n:"Recco",c:"H210"},{n:"Santa Margherita Ligure",c:"I225"},{n:"Sestri Levante",c:"I693"}],
+"GO":[{n:"Gorizia",c:"E098"},{n:"Monfalcone",c:"F356"}],
+"GR":[{n:"Grosseto",c:"E202"},{n:"Follonica",c:"D655"},{n:"Massa Marittima",c:"F032"},{n:"Orbetello",c:"G088"}],
+"IM":[{n:"Imperia",c:"E290"},{n:"Sanremo",c:"I138"},{n:"Ventimiglia",c:"L741"}],
+"IS":[{n:"Isernia",c:"E335"},{n:"Agnone",c:"A080"},{n:"Venafro",c:"L727"}],
+"KR":[{n:"Crotone",c:"D122"},{n:"Cirò Marina",c:"C726"},{n:"Cutro",c:"D235"}],
+"LC":[{n:"Lecco",c:"E507"},{n:"Calolziocorte",c:"B423"},{n:"Merate",c:"F133"},{n:"Oggiono",c:"G007"}],
+"LE":[{n:"Lecce",c:"E506"},{n:"Gallipoli",c:"D884"},{n:"Galatina",c:"D862"},{n:"Galatone",c:"D863"},{n:"Maglie",c:"E848"},{n:"Nardò",c:"F842"},{n:"Surbo",c:"L010"},{n:"Tricase",c:"L419"},{n:"Casarano",c:"B936"},{n:"Copertino",c:"C978"},{n:"Martano",c:"E979"},{n:"Matino",c:"F054"},{n:"Poggiardo",c:"G760"},{n:"Racale",c:"H147"},{n:"Squinzano",c:"I930"},{n:"Taviano",c:"L073"},{n:"Ugento",c:"L484"},{n:"Vernole",c:"L776"},{n:"Campi Salentina",c:"B506"},{n:"Carmiano",c:"B792"},{n:"Cavallino",c:"C374"},{n:"Leverano",c:"E563"},{n:"Lizzanello",c:"E630"},{n:"Melendugno",c:"F101"},{n:"Melpignano",c:"F117"},{n:"Monteroni di Lecce",c:"F604"},{n:"Otranto",c:"G188"},{n:"Porto Cesareo",c:"M263"},{n:"Salice Salentino",c:"H708"},{n:"San Cesario di Lecce",c:"H790"},{n:"Scorrano",c:"I549"},{n:"Soleto",c:"I799"}],
+"LI":[{n:"Livorno",c:"E625"},{n:"Cecina",c:"C415"},{n:"Piombino",c:"G687"},{n:"Portoferraio",c:"G912"},{n:"Rosignano Marittimo",c:"H570"}],
+"LO":[{n:"Lodi",c:"E648"},{n:"Codogno",c:"C815"},{n:"Sant'Angelo Lodigiano",c:"I274"}],
+"LT":[{n:"Latina",c:"E472"},{n:"Aprilia",c:"A341"},{n:"Cisterna di Latina",c:"C740"},{n:"Formia",c:"D708"},{n:"Gaeta",c:"D843"},{n:"Minturno",c:"F224"},{n:"Ponza",c:"G871"},{n:"Priverno",c:"G698"},{n:"Sabaudia",c:"H647"},{n:"Sezze",c:"I712"},{n:"Terracina",c:"L120"}],
+"LU":[{n:"Lucca",c:"E715"},{n:"Capannori",c:"B648"},{n:"Carrara",c:"B832"},{n:"Massa",c:"F023"},{n:"Pietrasanta",c:"G628"},{n:"Viareggio",c:"L833"}],
+"MB":[{n:"Monza",c:"F704"},{n:"Brugherio",c:"B213"},{n:"Cesano Maderno",c:"C566"},{n:"Desio",c:"D286"},{n:"Lissone",c:"E617"},{n:"Meda",c:"F080"},{n:"Seregno",c:"I625"},{n:"Sesto San Giovanni",c:"I690"},{n:"Vimercate",c:"M052"}],
+"MC":[{n:"Macerata",c:"E783"},{n:"Civitanova Marche",c:"C770"},{n:"Recanati",c:"H211"},{n:"San Severino Marche",c:"I157"}],
+"ME":[{n:"Messina",c:"F158"},{n:"Barcellona Pozzo di Gotto",c:"A638"},{n:"Milazzo",c:"F206"},{n:"Patti",c:"G376"}],
+"MI":[{n:"Milano",c:"F205"},{n:"Abbiategrasso",c:"A010"},{n:"Arese",c:"A389"},{n:"Assago",c:"A473"},{n:"Basiglio",c:"A698"},{n:"Bollate",c:"A940"},{n:"Bresso",c:"B162"},{n:"Buccinasco",c:"B240"},{n:"Cesano Boscone",c:"C565"},{n:"Cinisello Balsamo",c:"C707"},{n:"Cologno Monzese",c:"C894"},{n:"Cormano",c:"D013"},{n:"Corsico",c:"D045"},{n:"Cusano Milanino",c:"D228"},{n:"Garbagnate Milanese",c:"D912"},{n:"Legnano",c:"E514"},{n:"Magenta",c:"E801"},{n:"Opera",c:"G078"},{n:"Parabiago",c:"G324"},{n:"Pieve Emanuele",c:"G634"},{n:"Pioltello",c:"G686"},{n:"Rescaldina",c:"H240"},{n:"Rho",c:"H264"},{n:"Segrate",c:"I577"},{n:"Sesto San Giovanni",c:"I690"},{n:"Settimo Milanese",c:"I700"},{n:"Trezzano sul Naviglio",c:"L410"},{n:"Vimodrone",c:"M053"}],
+"MN":[{n:"Mantova",c:"E897"},{n:"Castiglione delle Stiviere",c:"C322"},{n:"Guidizzolo",c:"E263"},{n:"Suzzara",c:"L016"},{n:"Viadana",c:"L826"}],
+"MO":[{n:"Modena",c:"F257"},{n:"Carpi",c:"B819"},{n:"Castelfranco Emilia",c:"C107"},{n:"Formigine",c:"D711"},{n:"Maranello",c:"E907"},{n:"Mirandola",c:"F240"},{n:"Nonantola",c:"F930"},{n:"Sassuolo",c:"I462"},{n:"Vignola",c:"L883"}],
+"MS":[{n:"Massa",c:"F023"},{n:"Carrara",c:"B832"},{n:"Pontremoli",c:"G870"}],
+"MT":[{n:"Matera",c:"F052"},{n:"Bernalda",c:"A801"},{n:"Nova Siri",c:"A942"},{n:"Pisticci",c:"G712"},{n:"Policoro",c:"G786"},{n:"Potenza",c:"G942"}],
+"NA":[{n:"Napoli",c:"F839"},{n:"Afragola",c:"A064"},{n:"Arzano",c:"A455"},{n:"Aversa",c:"A512"},{n:"Bacoli",c:"A535"},{n:"Barra",c:"A678"},{n:"Casalnuovo di Napoli",c:"B905"},{n:"Caserta",c:"B963"},{n:"Castellammare di Stabia",c:"C129"},{n:"Casoria",c:"B990"},{n:"Ercolano",c:"H243"},{n:"Frattamaggiore",c:"D789"},{n:"Giugliano in Campania",c:"E054"},{n:"Gragnano",c:"E131"},{n:"Marano di Napoli",c:"E906"},{n:"Marigliano",c:"E955"},{n:"Massa di Somma",c:"M289"},{n:"Melito di Napoli",c:"F111"},{n:"Monte di Procida",c:"F488"},{n:"Nola",c:"F924"},{n:"Ottaviano",c:"G190"},{n:"Pomigliano d'Arco",c:"G812"},{n:"Portici",c:"G902"},{n:"Pozzuoli",c:"G964"},{n:"Qualiano",c:"H100"},{n:"Quarto",c:"H117"},{n:"Resina",c:"H243"},{n:"Scafati",c:"I483"},{n:"Secondigliano",c:"I560"},{n:"Seiano",c:"I578"},{n:"Sorrento",c:"I862"},{n:"Torre Annunziata",c:"L245"},{n:"Torre del Greco",c:"L259"},{n:"Villaricca",c:"G309"}],
+"NO":[{n:"Novara",c:"F952"},{n:"Arona",c:"A429"},{n:"Borgomanero",c:"B019"},{n:"Verbania",c:"L746"}],
+"NU":[{n:"Nuoro",c:"F979"},{n:"Dorgali",c:"D345"},{n:"Siniscola",c:"I751"}],
+"OR":[{n:"Oristano",c:"G113"},{n:"Ghilarza",c:"E004"}],
+"PA":[{n:"Palermo",c:"G273"},{n:"Bagheria",c:"A546"},{n:"Balestrate",c:"A592"},{n:"Carini",c:"B780"},{n:"Castelbuono",c:"C067"},{n:"Cefalù",c:"C421"},{n:"Cinisi",c:"C708"},{n:"Corleone",c:"D009"},{n:"Ficarazzi",c:"D567"},{n:"Lercara Friddi",c:"E541"},{n:"Marineo",c:"E957"},{n:"Misilmeri",c:"F246"},{n:"Monreale",c:"F377"},{n:"Partinico",c:"G347"},{n:"Termini Imerese",c:"L112"},{n:"Trabia",c:"L316"},{n:"Villabate",c:"L919"}],
+"PC":[{n:"Piacenza",c:"G535"},{n:"Bobbio",c:"A909"},{n:"Castel San Giovanni",c:"C261"},{n:"Fiorenzuola d'Arda",c:"D615"}],
+"PD":[{n:"Padova",c:"G224"},{n:"Abano Terme",c:"A001"},{n:"Cadoneghe",c:"B345"},{n:"Camposampiero",c:"B563"},{n:"Chioggia",c:"C638"},{n:"Cittadella",c:"C743"},{n:"Este",c:"D442"},{n:"Monselice",c:"F382"},{n:"Montagnana",c:"F394"},{n:"Piove di Sacco",c:"G693"},{n:"Rubano",c:"H627"},{n:"Selvazzano Dentro",c:"I594"},{n:"Vigonza",c:"L901"}],
+"PE":[{n:"Pescara",c:"G482"},{n:"Chieti",c:"C632"},{n:"Montesilvano",c:"F646"},{n:"Penne",c:"G432"},{n:"Popoli",c:"G878"}],
+"PG":[{n:"Perugia",c:"G478"},{n:"Assisi",c:"A475"},{n:"Città di Castello",c:"C745"},{n:"Foligno",c:"D653"},{n:"Gualdo Tadino",c:"E229"},{n:"Gubbio",c:"E256"},{n:"Marsciano",c:"E975"},{n:"Spoleto",c:"I921"},{n:"Terni",c:"L117"},{n:"Todi",c:"L188"},{n:"Umbertide",c:"D786"}],
+"PI":[{n:"Pisa",c:"G702"},{n:"Cascina",c:"B950"},{n:"Pontedera",c:"G856"},{n:"San Miniato",c:"I046"},{n:"Volterra",c:"M126"}],
+"PM":[{n:"Pesaro",c:"G479"}],
+"PN":[{n:"Pordenone",c:"G888"},{n:"Aviano",c:"A516"},{n:"Cordenons",c:"C991"},{n:"Sacile",c:"H657"}],
+"PO":[{n:"Prato",c:"G999"},{n:"Montemurlo",c:"F572"}],
+"PR":[{n:"Parma",c:"G337"},{n:"Collecchio",c:"C852"},{n:"Fidenza",c:"D530"},{n:"Salsomaggiore Terme",c:"H720"}],
+"PT":[{n:"Pistoia",c:"G713"},{n:"Montecatini-Terme",c:"A561"},{n:"Pescia",c:"G491"},{n:"Quarrata",c:"H109"}],
+"PU":[{n:"Pesaro",c:"G479"},{n:"Fano",c:"D486"},{n:"Fossombrone",c:"D748"},{n:"Senigallia",c:"I608"},{n:"Urbino",c:"L500"}],
+"PV":[{n:"Pavia",c:"G388"},{n:"Abbiategrasso",c:"A010"},{n:"Broni",c:"B202"},{n:"Stradella",c:"I968"},{n:"Vigevano",c:"L872"},{n:"Voghera",c:"M109"}],
+"PZ":[{n:"Potenza",c:"G942"},{n:"Lauria",c:"E485"},{n:"Melfi",c:"F104"},{n:"Venosa",c:"L738"}],
+"RA":[{n:"Ravenna",c:"H199"},{n:"Cervia",c:"C553"},{n:"Faenza",c:"D458"},{n:"Lugo",c:"E730"}],
+"RC":[{n:"Reggio Calabria",c:"H224"},{n:"Gioia Tauro",c:"E041"},{n:"Locri",c:"G261"},{n:"Villa San Giovanni",c:"M018"}],
+"RE":[{n:"Reggio Emilia",c:"H223"},{n:"Carpineti",c:"B823"},{n:"Castellarano",c:"C141"},{n:"Correggio",c:"D037"},{n:"Guastalla",c:"E253"},{n:"Montecchio Emilia",c:"F463"},{n:"Scandiano",c:"I496"}],
+"RG":[{n:"Ragusa",c:"H163"},{n:"Comiso",c:"C927"},{n:"Modica",c:"F258"},{n:"Scicli",c:"I535"},{n:"Vittoria",c:"M088"}],
+"RI":[{n:"Rieti",c:"H282"},{n:"Amatrice",c:"A258"},{n:"Fara in Sabina",c:"D493"},{n:"Poggio Mirteto",c:"G763"}],
+"RM":[{n:"Roma",c:"H501"},{n:"Albano Laziale",c:"A132"},{n:"Anzio",c:"A323"},{n:"Ardea",c:"M213"},{n:"Bracciano",c:"B115"},{n:"Cerveteri",c:"C552"},{n:"Ciampino",c:"C672"},{n:"Civitavecchia",c:"C773"},{n:"Colleferro",c:"C858"},{n:"Fiumicino",c:"M297"},{n:"Frascati",c:"D773"},{n:"Grottaferrata",c:"E210"},{n:"Guidonia Montecelio",c:"E263"},{n:"Monterotondo",c:"F611"},{n:"Nettuno",c:"F880"},{n:"Palestrina",c:"G274"},{n:"Pomezia",c:"G811"},{n:"Tivoli",c:"L182"},{n:"Velletri",c:"L719"},{n:"Viterbo",c:"M082"}],
+"RN":[{n:"Rimini",c:"H294"},{n:"Cattolica",c:"C357"},{n:"Misano Adriatico",c:"F244"},{n:"Riccione",c:"H274"},{n:"Santarcangelo di Romagna",c:"I304"}],
+"RO":[{n:"Rovigo",c:"H620"},{n:"Adria",c:"A057"},{n:"Porto Tolle",c:"G921"}],
+"SA":[{n:"Salerno",c:"H703"},{n:"Agropoli",c:"A091"},{n:"Battipaglia",c:"A715"},{n:"Cava de' Tirreni",c:"C361"},{n:"Eboli",c:"E367"},{n:"Mercato San Severino",c:"F138"},{n:"Nocera Inferiore",c:"F912"},{n:"Pagani",c:"G230"},{n:"Pontecagnano Faiano",c:"G834"},{n:"Sarno",c:"I438"},{n:"Scafati",c:"I483"},{n:"Serre",c:"I668"}],
+"SI":[{n:"Siena",c:"I726"},{n:"Chianciano Terme",c:"C608"},{n:"Colle di Val d'Elsa",c:"C847"},{n:"Montepulciano",c:"F592"},{n:"Montalcino",c:"F402"},{n:"Poggibonsi",c:"G752"}],
+"SO":[{n:"Sondrio",c:"I829"},{n:"Chiavenna",c:"C623"},{n:"Morbegno",c:"F712"},{n:"Tirano",c:"L175"}],
+"SP":[{n:"La Spezia",c:"E463"},{n:"Lerici",c:"E542"},{n:"Sarzana",c:"I449"}],
+"SR":[{n:"Siracusa",c:"I754"},{n:"Augusta",c:"A494"},{n:"Avola",c:"A522"},{n:"Lentini",c:"E532"},{n:"Noto",c:"F943"},{n:"Pachino",c:"G208"}],
+"SS":[{n:"Sassari",c:"I452"},{n:"Alghero",c:"A192"},{n:"Olbia",c:"G015"},{n:"Ozieri",c:"G206"},{n:"Porto Torres",c:"G926"},{n:"Tempio Pausania",c:"L093"}],
+"SU":[{n:"Carbonia",c:"B327"},{n:"Iglesias",c:"E281"},{n:"Sant'Antioco",c:"I294"}],
+"SV":[{n:"Savona",c:"I480"},{n:"Albenga",c:"A145"},{n:"Cairo Montenotte",c:"B369"},{n:"Finale Ligure",c:"D600"}],
+"TA":[{n:"Taranto",c:"L049"},{n:"Grottaglie",c:"E205"},{n:"Manduria",c:"E882"},{n:"Martina Franca",c:"E986"},{n:"Massafra",c:"F027"}],
+"TE":[{n:"Teramo",c:"L103"},{n:"Atri",c:"A488"},{n:"Giulianova",c:"E060"},{n:"Roseto degli Abruzzi",c:"F585"}],
+"TN":[{n:"Trento",c:"L378"},{n:"Arco",c:"A372"},{n:"Pergine Valsugana",c:"G452"},{n:"Rovereto",c:"H612"},{n:"Riva del Garda",c:"H330"}],
+"TO":[{n:"Torino",c:"L219"},{n:"Borgaro Torinese",c:"B015"},{n:"Beinasco",c:"A734"},{n:"Carmagnola",c:"B791"},{n:"Chieri",c:"C627"},{n:"Chivasso",c:"C648"},{n:"Collegno",c:"C860"},{n:"Grugliasco",c:"E265"},{n:"Ivrea",c:"E379"},{n:"Moncalieri",c:"F335"},{n:"Nichelino",c:"F889"},{n:"Orbassano",c:"G087"},{n:"Pianezza",c:"G570"},{n:"Pinerolo",c:"G674"},{n:"Rivoli",c:"H355"},{n:"Settimo Torinese",c:"I701"},{n:"Venaria Reale",c:"L727"}],
+"TP":[{n:"Trapani",c:"L331"},{n:"Alcamo",c:"A176"},{n:"Castelvetrano",c:"C286"},{n:"Marsala",c:"E974"},{n:"Mazara del Vallo",c:"F061"},{n:"Paceco",c:"G208"},{n:"Petrosino",c:"M281"}],
+"TR":[{n:"Terni",c:"L117"},{n:"Amelia",c:"A262"},{n:"Narni",c:"F843"},{n:"Orvieto",c:"G148"}],
+"TS":[{n:"Trieste",c:"L424"},{n:"Muggia",c:"F797"},{n:"San Dorligo della Valle",c:"D324"}],
+"TV":[{n:"Treviso",c:"L407"},{n:"Castelfranco Veneto",c:"C111"},{n:"Conegliano",c:"C957"},{n:"Mogliano Veneto",c:"F269"},{n:"Montebelluna",c:"F443"},{n:"Oderzo",c:"G978"},{n:"Vittorio Veneto",c:"M089"}],
+"UD":[{n:"Udine",c:"L483"},{n:"Cervignano del Friuli",c:"C556"},{n:"Cividale del Friuli",c:"C758"},{n:"Codroipo",c:"C817"},{n:"San Daniele del Friuli",c:"H816"},{n:"Tolmezzo",c:"L195"}],
+"VA":[{n:"Varese",c:"L682"},{n:"Busto Arsizio",c:"B300"},{n:"Castellanza",c:"C139"},{n:"Gallarate",c:"D869"},{n:"Luino",c:"E742"},{n:"Saronno",c:"I441"},{n:"Tradate",c:"L317"}],
+"VB":[{n:"Verbania",c:"L746"},{n:"Domodossola",c:"D333"},{n:"Omegna",c:"G062"}],
+"VC":[{n:"Vercelli",c:"L750"},{n:"Borgosesia",c:"B040"},{n:"Santhià",c:"I337"}],
+"VE":[{n:"Venezia",c:"L736"},{n:"Chioggia",c:"C638"},{n:"Dolo",c:"D325"},{n:"Jesolo",c:"C388"},{n:"Marghera",c:"E938"},{n:"Mestre",c:"F161"},{n:"Mirano",c:"F241"},{n:"Noale",c:"F907"},{n:"Portogruaro",c:"G914"},{n:"San Donà di Piave",c:"H822"},{n:"Spinea",c:"I909"}],
+"VI":[{n:"Vicenza",c:"L840"},{n:"Bassano del Grappa",c:"A703"},{n:"Brendola",c:"B143"},{n:"Arzignano",c:"A458"},{n:"Montecchio Maggiore",c:"F464"},{n:"Noventa Vicentina",c:"F963"},{n:"Sandrigo",c:"H829"},{n:"Schio",c:"I530"},{n:"Thiene",c:"L157"},{n:"Valdagno",c:"L551"}],
+"VR":[{n:"Verona",c:"L781"},{n:"Bardolino",c:"A650"},{n:"Bovolone",c:"B105"},{n:"Bussolengo",c:"B295"},{n:"Isola della Scala",c:"E349"},{n:"Lazise",c:"E502"},{n:"Legnago",c:"E512"},{n:"Negrar di Valpolicella",c:"F861"},{n:"Peschiera del Garda",c:"G489"},{n:"San Bonifacio",c:"H783"},{n:"San Giovanni Lupatoto",c:"H907"},{n:"Soave",c:"I775"},{n:"Villafranca di Verona",c:"L949"},{n:"Zevio",c:"M172"}],
+"VT":[{n:"Viterbo",c:"M082"},{n:"Civita Castellana",c:"C765"},{n:"Montefiascone",c:"F499"},{n:"Ronciglione",c:"H532"},{n:"Tarquinia",c:"D024"}],
+"VV":[{n:"Vibo Valentia",c:"F537"},{n:"Mileto",c:"F207"},{n:"Tropea",c:"L452"}]
+};
+
+/* Mappa sigla → nome completo provincia */
+const PROVINCE_NOMI={
+  AG:'Agrigento',AL:'Alessandria',AN:'Ancona',AO:"Valle d'Aosta",AP:'Ascoli Piceno',
+  AQ:"L'Aquila",AR:'Arezzo',AT:'Asti',AV:'Avellino',BA:'Bari',BG:'Bergamo',
+  BI:'Biella',BL:'Belluno',BN:'Benevento',BO:'Bologna',BR:'Brindisi',BS:'Brescia',
+  BT:'Barletta-Andria-Trani',BZ:'Bolzano',CA:'Cagliari',CB:'Campobasso',
+  CE:'Caserta',CH:'Chieti',CL:'Caltanissetta',CN:'Cuneo',CO:'Como',CR:'Cremona',
+  CS:'Cosenza',CT:'Catania',CZ:'Catanzaro',EN:'Enna',FC:'Forlì-Cesena',
+  FE:'Ferrara',FG:'Foggia',FI:'Firenze',FM:'Fermo',FR:'Frosinone',GE:'Genova',
+  GO:'Gorizia',GR:'Grosseto',IM:'Imperia',IS:'Isernia',KR:'Crotone',LC:'Lecco',
+  LE:'Lecce',LI:'Livorno',LO:'Lodi',LT:'Latina',LU:'Lucca',MB:'Monza e Brianza',
+  MC:'Macerata',ME:'Messina',MI:'Milano',MN:'Mantova',MO:'Modena',MS:'Massa-Carrara',
+  MT:'Matera',NA:'Napoli',NO:'Novara',NU:'Nuoro',OR:'Oristano',PA:'Palermo',
+  PC:'Piacenza',PD:'Padova',PE:'Pescara',PG:'Perugia',PI:'Pisa',PM:'Pesaro-Urbino',
+  PN:'Pordenone',PO:'Prato',PR:'Parma',PT:'Pistoia',PU:'Pesaro e Urbino',
+  PV:'Pavia',PZ:'Potenza',RA:'Ravenna',RC:'Reggio Calabria',RE:'Reggio Emilia',
+  RG:'Ragusa',RI:'Rieti',RM:'Roma',RN:'Rimini',RO:'Rovigo',SA:'Salerno',
+  SI:'Siena',SO:'Sondrio',SP:'La Spezia',SR:'Siracusa',SS:'Sassari',SU:'Sud Sardegna',
+  SV:'Savona',TA:'Taranto',TE:'Teramo',TN:'Trento',TO:'Torino',TP:'Trapani',
+  TR:'Terni',TS:'Trieste',TV:'Treviso',UD:'Udine',VA:'Varese',VB:'Verbano-Cusio-Ossola',
+  VC:'Vercelli',VE:'Venezia',VI:'Vicenza',VR:'Verona',VT:'Viterbo',VV:'Vibo Valentia',
+};
+
+function getCFProvince(){
+  return Object.keys(CF_COMUNI).sort((a,b)=>{
+    const na=PROVINCE_NOMI[a]||a, nb=PROVINCE_NOMI[b]||b;
+    return na.localeCompare(nb);
+  });
+}
+function getCFComuni(prov){
+  return (CF_COMUNI[prov]||[]).map(x=>({nome:x.n,cat:x.c})).sort((a,b)=>a.nome.localeCompare(b.nome));
+}
+/* Restituisce label "Nome (SIG)" per la tendina */
+function getCFProvLabel(sig){
+  return PROVINCE_NOMI[sig]?`${PROVINCE_NOMI[sig]} (${sig})`:sig;
+}
+
 const CF={
   vowels:'AEIOU',
   consonants:'BCDFGHJKLMNPQRSTVWXYZ',
@@ -1278,10 +1779,13 @@ const CF={
     if(cs.length>=4)nm=cs[0]+cs[2]+cs[3];
     else nm=[...cs,...vs,'X','X','X'].slice(0,3).join('');
     if(!dn)return'';
-    const d=new Date(dn);
-    const yy=String(d.getFullYear()).slice(-2);
-    const mm=this.months[d.getMonth()];
-    const gg=String(d.getDate()+(sesso==='F'?40:0)).padStart(2,'0');
+    // Parsiamo la stringa YYYY-MM-DD direttamente per evitare shift UTC di Safari iOS
+    const parts=dn.split('-');
+    if(parts.length!==3)return'';
+    const yy=parts[0].slice(-2);
+    const mm=this.months[parseInt(parts[1],10)-1];
+    const giorno=parseInt(parts[2],10);
+    const gg=String(giorno+(sesso==='F'?40:0)).padStart(2,'0');
     const cc=(comune||'').toUpperCase().slice(0,4).padEnd(4,'X');
     const base=cog+nm+yy+mm+gg+cc;
     let odd=0,even=0;
@@ -1411,6 +1915,13 @@ function showVeicolo(id){
   const ricNoleggi=nl.filter(n=>n.stato==='completato').reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
   const vendita=DATA.sales.find(s=>s.vehicle_id===id);
   const profitto=ricNoleggi+(vendita?parseFloat(vendita.prezzo_vendita)||0:0)-totCosti;
+  const isVenduto=vx.stato==='venduto';
+  const isNoleggio=vx.destinazione==='noleggio';
+
+  // Scadenze legate al veicolo
+  const scadVeicolo=DATA.reminders.filter(r=>r.riferimento_id===id&&r.stato!=='completato');
+  const scadUrgenti=scadVeicolo.filter(r=>remStatus(r)!=='ok');
+
   document.getElementById('detail-title').textContent=`${vx.marca} ${vx.modello}`;
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
@@ -1420,8 +1931,10 @@ function showVeicolo(id){
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <span class="badge ${SI[vx.stato]||'b-dim'}">${vx.stato}</span>
         ${vx.destinazione?`<span class="badge ${vx.destinazione==='noleggio'?'b-teal':'b-purple'}">${vx.destinazione==='noleggio'?'🔑 Noleggio':'💰 Vendita'}</span>`:''}
+        ${scadUrgenti.length?`<span class="badge b-red">⚠ ${scadUrgenti.length} scad.</span>`:''}
       </div>
     </div>
+
     <div class="list-section"><div class="list-header">Specifiche</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Anno</div><div class="ios-row-title">${vx.anno||'—'}</div></div></div>
@@ -1431,25 +1944,52 @@ function showVeicolo(id){
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Prezzo acquisto</div><div class="ios-row-title">${fE(vx.prezzo_acquisto)}</div></div></div>
       </div>
     </div>
+
     <div class="list-section"><div class="list-header">Economico</div>
       <div class="ios-list">
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Costi totali</div><div class="ios-row-title" style="color:var(--red)">${fE(totCosti)}</div></div></div>
+        ${!isVenduto?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Costi totali</div><div class="ios-row-title" style="color:var(--red)">${fE(totCosti)}</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricavi noleggi</div><div class="ios-row-title" style="color:var(--green)">${fE(ricNoleggi)}</div></div></div>
         ${vendita?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricavo vendita</div><div class="ios-row-title" style="color:var(--purple)">${fE(vendita.prezzo_vendita)}</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Profitto</div><div class="ios-row-title" style="color:${profitto>=0?'var(--green)':'var(--red)'}"><strong>${fE(profitto)}</strong></div></div></div>
       </div>
     </div>
+
     <div class="list-section"><div class="list-header">Noleggi (${nl.length})</div>
-      <div class="ios-list">${nl.length?nl.map(n=>{const c=cM[n.customer_id]||{};return`<div class="ios-row"><div class="ios-row-icon" style="background:var(--bg3)">👤</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
+      <div class="ios-list">${nl.length?nl.map(n=>{const c=cM[n.customer_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:var(--bg3)">👤</div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
     </div>
-    <div class="list-section"><div class="list-header">Costi/Manutenzioni (${exps.length})</div>
-      <div class="ios-list">${exps.length?exps.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)">🔧</div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)} · ${e.tipo}</div></div><span style="font-size:14px;font-weight:600;color:var(--orange)">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun costo</p></div>'}</div>
+
+    ${!isVenduto&&isNoleggio?`
+    <div class="list-section"><div class="list-header">Costi e manutenzioni (${exps.length})</div>
+      <div class="ios-list">${exps.length?exps.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)">🔧</div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)} · ${e.tipo}${e.periodicita&&e.periodicita!=='una-tantum'?' · 🔄 '+e.periodicita:''}</div></div><span style="font-size:14px;font-weight:600;color:var(--orange)">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun costo</p></div>'}</div>
     </div>
+
+    <div class="list-section"><div class="list-header">Scadenze veicolo (${scadVeicolo.length})</div>
+      <div class="ios-list">${scadVeicolo.length?scadVeicolo.map(r=>{const st=remStatus(r);const badgeCls=st==='expired'?'reminder-badge-expired':st==='soon'?'reminder-badge-soon':'reminder-badge-ok';return`<div class="ios-row" onclick="showReminder('${r.id}')"><div class="ios-row-icon" style="background:${st==='expired'?'var(--red-bg)':st==='soon'?'var(--orange-bg)':'var(--green-bg)'}">${remIcon(r.tipo)}</div><div class="ios-row-body"><div class="ios-row-title">${r.descrizione||r.tipo}</div><div class="ios-row-sub">${fD(r.data_scadenza)}</div></div><span class="${badgeCls}">${fD(r.data_scadenza)}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessuna scadenza</p></div>'}</div>
+    </div>`:''} 
+
+    ${isVenduto?`
+    ${exps.filter(e=>e.tipo==='garanzia').length?`
+    <div class="list-section"><div class="list-header">🛡 Garanzie post-vendita (${exps.filter(e=>e.tipo==='garanzia').length})</div>
+      <div class="ios-list">${exps.filter(e=>e.tipo==='garanzia').map(e=>{
+        const cliente=DATA.clienti.find(x=>x.id===e.garanzia_cliente_id);
+        return`<div class="ios-row" onclick="showExpense('${e.id}')">
+          <div class="ios-row-icon" style="background:var(--purple-bg)">🛡</div>
+          <div class="ios-row-body">
+            <div class="ios-row-title">${e.descrizione||'Garanzia'}${cliente?' — '+nomeAnagrafica(cliente):''}</div>
+            <div class="ios-row-sub">${fD(e.data)}${e.garanzia_scadenza?' · Scade '+fD(e.garanzia_scadenza):''}</div>
+          </div>
+          <span style="font-size:14px;font-weight:600;color:var(--purple)">${fE(e.costo)}</span>
+        </div>`;}).join('')}</div>
+    </div>`:''}`:''}
+
     <div class="btn-stack" style="margin-top:8px">
       <button class="ios-btn primary" onclick="editVeicolo('${id}')">✏️ Modifica</button>
-      <button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}'})">➕ Aggiungi costo</button>
+      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}'})">🔧 Aggiungi costo</button>`:''}
+      ${isVenduto?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}',tipo:'garanzia'})" style="background:var(--purple-bg);color:var(--purple)">🛡 Aggiungi garanzia</button>`:''}
+      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('reminder',{riferimento_id:'${id}',riferimento_tipo:'veicolo'})" style="background:var(--orange-bg);color:var(--orange)">🔔 Aggiungi scadenza</button>`:''}
       ${vx.destinazione==='vendita'&&vx.stato==='disponibile'?`<button class="ios-btn success" onclick="openSheet('vendita',{vehicle_id:'${id}'})">💰 Registra vendita</button>`:''}
-      ${vx.destinazione==='noleggio'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','vendita')">💰 Sposta in vendita</button>`:`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','noleggio')">🔑 Sposta in noleggio</button>`}
+      ${!isVenduto&&vx.destinazione==='noleggio'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','vendita')">💰 Sposta in vendita</button>`:''}
+      ${!isVenduto&&vx.destinazione==='vendita'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','noleggio')">🔑 Sposta in noleggio</button>`:''}
       <button class="ios-btn danger" onclick="askDel('veicolo','${id}')">Elimina veicolo</button>
     </div>`;
   openDetail();
@@ -1465,8 +2005,9 @@ function openDocFab(){
 
 function renderDocs(){
   const body=document.getElementById('docs-body');
+  if(!body)return;
   const docFab=document.getElementById('docs-fab');
-  docFab.style.display=docTab==='calendario'?'none':'flex';
+  if(docFab)docFab.style.display=docTab==='calendario'?'none':'flex';
   if(docTab==='noleggi')renderNoleggiIn(body);
   else if(docTab==='vendite')renderVenditeIn(body);
   else if(docTab==='ddt')renderDdtIn(body);
@@ -1535,10 +2076,32 @@ function showNoleggio(id){
       ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">✅ Chiudi Noleggio</button>`:''}
       ${n.stato==='attivo'&&!n.km_inizio?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">✅ Chiudi rapido</button>`:''}
       <button class="ios-btn neutral" onclick="genPdfNoleggio('${id}')">🖨 Contratto PDF</button>
+      <button class="ios-btn neutral" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)">📦 Genera DDT da contratto</button>
       ${n.danni_rientro?`<button class="ios-btn neutral" onclick="genPdfContestazione('${id}')">📄 PDF Contestazione</button>`:''}
       <button class="ios-btn danger" onclick="askDel('noleggio','${id}')">Elimina</button>
     </div>`;
   openDetail();
+}
+
+/* Genera DDT pre-compilato da un noleggio esistente */
+function generaDdtDaNoleggio(noleggioId){
+  const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
+  // Controlla se esiste già un DDT per questo noleggio
+  const existing=DATA.ddt.find(d=>d.noleggio_id===noleggioId);
+  if(existing){
+    if(!confirm('Esiste già un DDT per questo contratto. Crearne un altro?'))return;
+  }
+  closeDetail();
+  // Pre-popola i dati dal noleggio — nessun reinserimento manuale
+  const prefill={
+    _fromNoleggio:noleggioId,
+    customer_id:n.customer_id,
+    vehicle_id:n.vehicle_id,
+    data_consegna:n.data_inizio,
+    data:n.data_inizio,
+    causale:'Noleggio',
+  };
+  openSheet('ddt',prefill);
 }
 
 async function chiudiNoleggio(id){
@@ -1557,7 +2120,7 @@ function bCheckout(body,d){
     <p style="color:var(--label2);font-size:13px;margin-bottom:14px">Compila al momento della <strong>consegna</strong> del veicolo al cliente.</p>
     <div class="fsec"><div class="fsec-title">Stato veicolo all'uscita</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>KM inizio *</label><input id="f-co-km" type="number" placeholder="${vx?.km||0}" value="${vx?.km||''}"></div>
+        <div class="ios-f"><label>KM inizio *</label><input id="f-co-km" type="number" inputmode="decimal" placeholder="${vx?.km||0}" value="${vx?.km||''}"></div>
       </div>
       <div style="padding:8px 0 4px;font-size:12px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.05em">Carburante *</div>
       <div class="carb-grid" id="carb-out-grid">
@@ -1594,7 +2157,7 @@ function bCheckin(body,d){
     <p style="color:var(--label2);font-size:13px;margin-bottom:14px">Compila al momento del <strong>rientro</strong> del veicolo.</p>
     <div class="fsec"><div class="fsec-title">Stato veicolo al rientro</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>KM finali *</label><input id="f-ci-km" type="number" placeholder="KM contachilometri"></div>
+        <div class="ios-f"><label>KM finali *</label><input id="f-ci-km" type="number" inputmode="decimal" placeholder="KM contachilometri"></div>
       </div>
       <div style="padding:8px 0 4px;font-size:12px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.05em">Carburante rientro *</div>
       <div class="carb-grid">
@@ -1605,7 +2168,7 @@ function bCheckin(body,d){
     <div class="fsec"><div class="fsec-title">Danni e extra</div>
       <div class="ios-fg">
         <div class="ios-f ta"><label>Danni rilevati</label><textarea id="f-ci-danni" placeholder="Descrivi eventuali danni rilevati al rientro…"></textarea></div>
-        <div class="ios-f"><label>Addebiti extra €</label><input id="f-ci-extra" type="number" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="ios-f"><label>Addebiti extra €</label><input id="f-ci-extra" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
         <div class="ios-f ta"><label>Note</label><textarea id="f-ci-note" placeholder="Note aggiuntive…"></textarea></div>
       </div>
     </div>
@@ -1643,22 +2206,26 @@ function showVendita(id){
   const costi=DATA.expenses.filter(e=>e.vehicle_id===s.vehicle_id).reduce((t,e)=>t+(parseFloat(e.costo)||0),0);
   const ricNoleggi=DATA.noleggi.filter(n=>n.vehicle_id===s.vehicle_id&&n.stato==='completato').reduce((t,n)=>t+(parseFloat(n.prezzo)||0),0);
   const profitto=(parseFloat(s.prezzo_vendita)||0)+ricNoleggi-costi;
-  document.getElementById('detail-title').textContent='Vendita';
+  document.getElementById('detail-title').textContent='Contratto Vendita';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
       <div style="font-size:46px;margin-bottom:8px">💰</div>
       <div class="hero-name">${vx.marca||'?'} ${vx.modello||''}</div>
-      <div class="hero-sub">${c.cognome||''} ${c.nome||''} · ${fD(s.data)}</div>
+      <div class="hero-sub">${nomeAnagrafica(c)} · ${fD(s.data)}</div>
     </div>
     <div class="list-section"><div class="list-header">Dettagli vendita</div>
       <div class="ios-list">
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Prezzo vendita</div><div class="ios-row-title amount-big">${fE(s.prezzo_vendita)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Cliente</div><div class="ios-row-title">${nomeAnagrafica(c)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Veicolo</div><div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''} · <span style="font-family:monospace">${vx.targa||'—'}</span></div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data vendita</div><div class="ios-row-title">${fD(s.data)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Prezzo vendita</div><div class="ios-row-title amount-big" style="color:var(--purple)">${fE(s.prezzo_vendita)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Costi sostenuti</div><div class="ios-row-title" style="color:var(--red)">${fE(costi)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricavi noleggi</div><div class="ios-row-title" style="color:var(--green)">${fE(ricNoleggi)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Profitto totale</div><div class="ios-row-title" style="color:${profitto>=0?'var(--green)':'var(--red)'}"><strong>${fE(profitto)}</strong></div></div></div>
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
+      <button class="ios-btn neutral" onclick="genPdfVendita('${id}')">🖨 Contratto PDF</button>
       <button class="ios-btn danger" onclick="askDel('sale','${id}')">Elimina vendita</button>
     </div>`;
   openDetail();
@@ -1795,8 +2362,9 @@ function openGestFab(){
 
 function renderGest(){
   const body=document.getElementById('gest-body');
+  if(!body)return;
   const gestFab=document.getElementById('gest-fab');
-  gestFab.style.display=(gestTab==='report'||gestTab==='analisi')?'none':'flex';
+  if(gestFab)gestFab.style.display=(gestTab==='report'||gestTab==='analisi')?'none':'flex';
   if(gestTab==='costi')renderCostiIn(body);
   else if(gestTab==='fornitori')renderFornitoriIn(body);
   else if(gestTab==='danni')renderDanniIn(body);
@@ -2036,14 +2604,39 @@ document.getElementById('confirm-ok').onclick=async function(){
 /* ══════════════════════ SHEET FORMS ══════════════════════ */
 function openSheet(type,data=null){
   curForm={type,data};
-  const titles={cliente:data?.id?'Modifica Cliente':'Nuovo Cliente',veicolo:data?.id?'Modifica Veicolo':'Nuovo Veicolo',noleggio:'Nuovo Noleggio',vendita:'Registra Vendita',ddt:'Nuovo DDT',expense:'Aggiungi Costo',fornitore:data?.id?'Modifica Fornitore':'Nuovo Fornitore',reminder:'Nuova Scadenza'};
+  const titles={
+    cliente:   data?.id?'Modifica Cliente':'Nuovo Cliente',
+    veicolo:   data?.id?'Modifica Veicolo':'Nuovo Veicolo',
+    noleggio:  'Nuovo Noleggio',
+    vendita:   'Registra Vendita',
+    ddt:       data?._fromNoleggio?'Genera DDT':'Nuovo DDT',
+    expense:   data?.id?'Modifica Costo':'Aggiungi Costo',
+    fornitore: data?.id?'Modifica Fornitore':'Nuovo Fornitore',
+    reminder:  data?.id?'Modifica Scadenza':'Nuova Scadenza',
+    checkout:  'Check-out (Consegna)',
+    checkin:   'Check-in (Rientro)',
+    danno:     'Registra Danno',
+    payment:   'Registra Pagamento',
+    company_cost: 'Costo Aziendale',
+    user:      data?.id?'Modifica Utente':'Nuovo Utente',
+  };
   document.getElementById('sheet-title').textContent=titles[type]||type;
   const body=document.getElementById('sheet-body');
-  const builders={cliente:bCliente,veicolo:bVeicolo,noleggio:bNoleggio,vendita:bVendita,ddt:bDdt,expense:bExpense,fornitore:bFornitore,reminder:bReminder,checkout:bCheckout,checkin:bCheckin,danno:bDanno,payment:bPayment,company_cost:bCompanyCost,user:bUser};
+  body.innerHTML=''; // reset prima di ricostruire
+  const builders={
+    cliente:bCliente,veicolo:bVeicolo,noleggio:bNoleggio,vendita:bVendita,
+    ddt:bDdt,expense:bExpense,fornitore:bFornitore,reminder:bReminder,
+    checkout:bCheckout,checkin:bCheckin,danno:bDanno,payment:bPayment,
+    company_cost:bCompanyCost,user:bUser
+  };
   if(builders[type])builders[type](body,data);
   document.getElementById('sheet-overlay').classList.add('open');
 }
-function closeSheet(e){if(e&&e.target!==document.getElementById('sheet-overlay'))return;document.getElementById('sheet-overlay').classList.remove('open');curForm=null;}
+function closeSheet(e){
+  if(e&&e.target!==document.getElementById('sheet-overlay'))return;
+  document.getElementById('sheet-overlay').classList.remove('open');
+  curForm=null;
+}
 
 /* ── HELPER: nome display per qualsiasi anagrafica ── */
 function nomeAnagrafica(c){
@@ -2080,16 +2673,29 @@ function bCliente(body,d){
       </div>
       <div class="fsec"><div class="fsec-title">Dati per C.F.</div>
         <div class="ios-fg">
-          <div class="ios-f"><label>Data nascita</label><input id="f-dn" type="date" value="${esc(d?.data_nascita||'')}" oninput="aggiornaCF()"></div>
-          <div class="ios-f"><label>Luogo nascita</label><input id="f-ln" placeholder="Roma" value="${esc(d?.luogo_nascita||'')}"></div>
-          <div class="ios-f"><label>Comune CF</label><input id="f-cn" placeholder="Cod. catastale es. H501" value="${esc(d?.comune_nascita||'')}" oninput="aggiornaCF()"></div>
+          <div class="ios-f"><label>Data nascita</label><input id="f-dn" type="date" value="${esc(d?.data_nascita||'')}" min="1900-01-01" max="${new Date().toISOString().split('T')[0]}" oninput="aggiornaCF()" onchange="aggiornaCF()" style="text-align:left;min-width:0;flex:1"></div>
+          <div class="ios-f"><label>Provincia</label>
+            <select id="f-provincia" onchange="onProvinciaCF(this.value)" style="text-align:right">
+              <option value="">Seleziona…</option>
+              ${getCFProvince().map(p=>`<option value="${p}"${(d?.provincia_nascita||'')==p?' selected':''}>${getCFProvLabel(p)}</option>`).join('')}
+            </select>
+          </div>
+          <div class="ios-f"><label>Comune</label>
+            <select id="f-comune-cf" onchange="onComuneCF(this.value)" style="text-align:right">
+              <option value="">Seleziona…</option>
+              ${d?.provincia_nascita?getCFComuni(d.provincia_nascita).map(c=>`<option value="${c.nome}" data-cat="${c.cat}"${(d?.luogo_nascita||'')==c.nome?' selected':''}>${c.nome}</option>`).join(''):''}
+            </select>
+          </div>
         </div>
+        <input type="hidden" id="f-cn" value="${esc(d?.comune_nascita||'')}">
+        <input type="hidden" id="f-ln" value="${esc(d?.luogo_nascita||'')}">
+        ${d?.comune_nascita?`<p style="font-size:11px;color:var(--label3);padding:4px 2px">Codice catastale: <strong style="color:var(--blue);font-family:monospace">${d.comune_nascita}</strong></p>`:'<p style="font-size:11px;color:var(--label3);padding:4px 2px">Seleziona provincia e comune per ottenere il codice catastale automaticamente.</p>'}
       </div>
       <div class="fsec"><div class="fsec-title">Codice Fiscale *</div>
         <div class="ios-fg">
-          <div class="ios-f"><label>C.F.</label><input id="f-cf" placeholder="Calcolato auto" value="${esc(d?.codice_fiscale||'')}" style="font-family:monospace;font-size:14px;text-transform:uppercase"></div>
+          <div class="ios-f"><label>C.F.</label><input id="f-cf" placeholder="Calcolato auto" value="${esc(d?.codice_fiscale||'')}" style="font-family:monospace;font-size:16px;text-transform:uppercase"></div>
         </div>
-        <p style="font-size:11px;color:var(--label3);padding:4px 2px">Auto-calcolato con nome+cognome+nascita+sesso+comune catastale.<br>🔎 <strong style="color:var(--blue)">codicefiscale.it</strong> — es: Roma=H501, Milano=F205</p>
+        <p style="font-size:11px;color:var(--label3);padding:4px 2px">Auto-calcolato. Puoi anche modificarlo manualmente.</p>
       </div>
     </div>
     <div id="f-fields-azienda" style="display:${tipo==='azienda'?'block':'none'}">
@@ -2121,9 +2727,36 @@ function selAnaTipo(tipo){
   document.getElementById('f-fields-azienda').style.display=tipo==='azienda'?'block':'none';
 }
 
+function onProvinciaCF(prov){
+  const sel=document.getElementById('f-comune-cf');
+  if(!sel)return;
+  sel.innerHTML=`<option value="">Seleziona comune…</option>`+
+    getCFComuni(prov).map(c=>`<option value="${c.nome}" data-cat="${c.cat}">${c.nome}</option>`).join('');
+  document.getElementById('f-cn').value='';
+  document.getElementById('f-ln').value='';
+  // Update catastale hint
+  const hint=sel.closest('.fsec')?.querySelector('p');
+  if(hint)hint.innerHTML='Seleziona il comune per ottenere il codice catastale.';
+}
+
+function onComuneCF(nomeComune){
+  const sel=document.getElementById('f-comune-cf');
+  const opt=sel?.querySelector(`option[value="${CSS.escape(nomeComune)}"]`)||
+             Array.from(sel?.options||[]).find(o=>o.value===nomeComune);
+  const cat=opt?.dataset?.cat||opt?.getAttribute('data-cat')||'';
+  document.getElementById('f-cn').value=cat;
+  document.getElementById('f-ln').value=nomeComune;
+  // Show catastale code
+  const hint=sel?.closest('.fsec')?.querySelector('p');
+  if(hint&&cat)hint.innerHTML=`Codice catastale: <strong style="color:var(--blue);font-family:monospace">${cat}</strong>`;
+  aggiornaCF();
+}
+
 function aggiornaCF(){
-  const nome=v('f-nome'),cognome=v('f-cognome'),dn=v('f-dn'),sesso=v('f-sesso'),cn=v('f-cn');
+  const nome=v('f-nome'),cognome=v('f-cognome'),dn=v('f-dn'),sesso=v('f-sesso');
+  const cn=document.getElementById('f-cn')?.value||'';
   if(nome&&cognome&&dn&&sesso&&cn){
+    // Usiamo la stringa YYYY-MM-DD direttamente — no conversione Date che causa shift UTC
     const cf=CF.calc(nome,cognome,dn,sesso,cn);
     const el=document.getElementById('f-cf');
     if(el&&!el._manuallyEdited)el.value=cf;
@@ -2139,7 +2772,10 @@ async function saveCliente(){
     const nome=v('f-nome'),cognome=v('f-cognome'),cf=(v('f-cf')||'').toUpperCase();
     if(!nome||!cognome){toast('Nome e cognome obbligatori','err');return;}
     if(!cf){toast('Codice fiscale obbligatorio per privati','err');return;}
-    Object.assign(r,{nome,cognome,sesso:v('f-sesso'),data_nascita:v('f-dn'),luogo_nascita:v('f-ln'),comune_nascita:v('f-cn'),codice_fiscale:cf,indirizzo:v('f-indirizzo')});
+    const luogoNascita=document.getElementById('f-ln')?.value||'';
+    const comuneNascita=document.getElementById('f-cn')?.value||'';
+    const provinciaNascita=v('f-provincia')||'';
+    Object.assign(r,{nome,cognome,sesso:v('f-sesso'),data_nascita:v('f-dn'),luogo_nascita:luogoNascita,comune_nascita:comuneNascita,provincia_nascita:provinciaNascita,codice_fiscale:cf,indirizzo:v('f-indirizzo')});
   } else {
     const rs=v('f-rag-soc'),piva=v('f-piva');
     if(!rs){toast('Ragione sociale obbligatoria','err');return;}
@@ -2151,13 +2787,14 @@ async function saveCliente(){
 
 /* ── VEICOLO FORM ── */
 function bVeicolo(body,d){
+  const isEdit=!!(d?.id);
   body.innerHTML=`
     <div class="fsec"><div class="fsec-title">Identificazione</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Targa *</label><input id="f-targa" placeholder="AA000BB" value="${esc(d?.targa||'')}" style="text-transform:uppercase"></div>
         <div class="ios-f"><label>Marca *</label><input id="f-marca" placeholder="Fiat" value="${esc(d?.marca||'')}"></div>
         <div class="ios-f"><label>Modello *</label><input id="f-modello" placeholder="Panda" value="${esc(d?.modello||'')}"></div>
-        <div class="ios-f"><label>Anno *</label><input id="f-anno" type="number" placeholder="2023" value="${esc(d?.anno||'')}"></div>
+        <div class="ios-f"><label>Anno *</label><input id="f-anno" type="number" inputmode="decimal" placeholder="2023" value="${d?.anno!=null?d.anno:''}"></div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Destinazione</div>
@@ -2167,22 +2804,42 @@ function bVeicolo(body,d){
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Km</label><input id="f-km" type="number" placeholder="0" value="${esc(d?.km||0)}"></div>
+        <div class="ios-f"><label>Km</label><input id="f-km" type="number" inputmode="decimal" placeholder="0" value="${d?.km!=null?d.km:''}"></div>
         <div class="ios-f"><label>Colore</label><input id="f-colore" placeholder="Bianco" value="${esc(d?.colore||'')}"></div>
         <div class="ios-f"><label>Carburante</label><select id="f-carb">${['benzina','diesel','elettrico','ibrido','gpl','metano'].map(c=>`<option value="${c}"${d?.carburante===c?' selected':''}>${c[0].toUpperCase()+c.slice(1)}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Prezzo acquisto</label><input id="f-pacq" type="number" step="0.01" placeholder="0.00" value="${esc(d?.prezzo_acquisto||'')}"></div>
+        <div class="ios-f"><label>Prezzo acquisto €</label><input id="f-pacq" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${d?.prezzo_acquisto!=null&&d.prezzo_acquisto!==''?d.prezzo_acquisto:''}"></div>
         <div class="ios-f"><label>Stato</label><select id="f-stato">${['disponibile','noleggiato','manutenzione','venduto'].map(s=>`<option value="${s}"${d?.stato===s?' selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}</select></div>
       </div>
     </div>
-    <button class="ios-btn primary" onclick="saveVeicolo()" style="margin-top:6px">Salva</button>`;
+    <button class="ios-btn primary" onclick="saveVeicolo()" style="margin-top:6px">${isEdit?'Aggiorna Veicolo':'Salva Veicolo'}</button>`;
 }
 async function saveVeicolo(){
-  const targa=v('f-targa').toUpperCase(),marca=v('f-marca'),modello=v('f-modello'),anno=v('f-anno'),dest=v('f-dest');
+  const targa=v('f-targa').toUpperCase().trim();
+  const marca=v('f-marca').trim();
+  const modello=v('f-modello').trim();
+  const anno=v('f-anno').trim();
+  const dest=v('f-dest');
   if(!targa||!marca||!modello||!anno){toast('Targa, marca, modello, anno obbligatori','err');return;}
   if(!dest){toast('Seleziona destinazione (noleggio o vendita)','err');return;}
-  if(DATA.veicoli.find(x=>x.targa===targa&&x.id!==curForm.data?.id)){toast('Targa già presente!','err');return;}
-  const r={id:curForm.data?.id||uid(),targa,marca,modello,anno:parseInt(anno),km:parseInt(v('f-km'))||0,colore:v('f-colore'),carburante:v('f-carb'),destinazione:dest,prezzo_acquisto:parseFloat(v('f-pacq'))||0,stato:v('f-stato'),created_at:curForm.data?.created_at||Date.now()};
-  upsert('veicoli',r);closeSheet();renderAll();toast('Veicolo salvato!');await syncUp();
+  const existingId=curForm?.data?.id||null;
+  if(DATA.veicoli.find(x=>x.targa===targa&&x.id!==existingId)){toast('Targa già presente!','err');return;}
+  const r={
+    id:existingId||uid(),
+    targa,marca,modello,
+    anno:parseInt(anno),
+    km:parseInt(v('f-km'))||0,
+    colore:v('f-colore'),
+    carburante:v('f-carb'),
+    destinazione:dest,
+    prezzo_acquisto:parseFloat(v('f-pacq'))||0,
+    stato:v('f-stato')||'disponibile',
+    created_at:curForm?.data?.created_at||Date.now()
+  };
+  upsert('veicoli',r);
+  closeSheet();
+  renderAll();
+  toast(existingId?'Veicolo aggiornato! ✅':'Veicolo salvato! 🚗');
+  await syncUp();
 }
 
 /* ── NOLEGGIO FORM ── */
@@ -2200,12 +2857,30 @@ function bNoleggio(body){
     </div>
     <div class="fsec"><div class="fsec-title">Periodo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Data inizio *</label><input id="f-di" type="date" value="${today}"></div>
-        <div class="ios-f"><label>Data fine *</label><input id="f-df" type="date"></div>
+        <div class="ios-f"><label>Data inizio *</label><input id="f-di" type="date" value="${today}" min="${today}" style="text-align:left;flex:1" onchange="aggiornaDfMin()"></div>
+        <div class="ios-f"><label>Data fine *</label><input id="f-df" type="date" min="${today}" style="text-align:left;flex:1"></div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Importo</div>
-      <div class="ios-fg"><div class="ios-f"><label>Prezzo (€) *</label><input id="f-prezzo" type="number" step="0.01" min="0" placeholder="0.00"></div></div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
+        <button class="km-opt sel" id="prezzo-forfait" onclick="selPrezzoMode('forfait')" style="font-size:12px">
+          💰<br><span style="font-size:10px">Forfettario</span>
+        </button>
+        <button class="km-opt" id="prezzo-giorno" onclick="selPrezzoMode('giorno')" style="font-size:12px">
+          📅<br><span style="font-size:10px">Al giorno</span>
+        </button>
+      </div>
+      <input type="hidden" id="f-prezzo-mode" value="forfait">
+      <div id="wrap-forfait">
+        <div class="ios-fg"><div class="ios-f"><label>Totale (€) *</label><input id="f-prezzo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div></div>
+      </div>
+      <div id="wrap-giorno" style="display:none">
+        <div class="ios-fg">
+          <div class="ios-f"><label>€/giorno *</label><input id="f-prezzo-giorno" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" oninput="calcolaPrezzo()"></div>
+          <div class="ios-f"><label>Totale stimato</label><input id="f-prezzo-calc" type="text" readonly placeholder="Calcolato auto" style="color:var(--blue);font-weight:600"></div>
+        </div>
+        <p style="font-size:11px;color:var(--label3);padding:2px 2px 0">Calcolato sui giorni selezionati</p>
+      </div>
     </div>
     <div class="fsec"><div class="fsec-title">KM inclusi</div>
       <div class="km-toggle">
@@ -2215,11 +2890,27 @@ function bNoleggio(body){
       </div>
       <input type="hidden" id="f-km-tipo" value="illimitati">
       <div id="f-km-num-wrap" style="display:none;margin-top:8px">
-        <div class="ios-fg"><div class="ios-f"><label id="f-km-lbl">KM *</label><input id="f-km-num" type="number" min="0" placeholder="100"></div></div>
+        <div class="ios-fg"><div class="ios-f"><label id="f-km-lbl">KM *</label><input id="f-km-num" type="number" inputmode="decimal" min="0" placeholder="100"></div></div>
       </div>
     </div>
     <button class="ios-btn primary" onclick="saveNoleggio()" style="margin-top:6px" ${!disp.length?'disabled':''}>Crea Noleggio</button>`;
 }
+function selPrezzoMode(mode){
+  document.getElementById('prezzo-forfait')?.classList.toggle('sel',mode==='forfait');
+  document.getElementById('prezzo-giorno')?.classList.toggle('sel',mode==='giorno');
+  document.getElementById('f-prezzo-mode').value=mode;
+  document.getElementById('wrap-forfait').style.display=mode==='forfait'?'':'none';
+  document.getElementById('wrap-giorno').style.display=mode==='giorno'?'':'none';
+  if(mode==='giorno')calcolaPrezzo();
+}
+function calcolaPrezzo(){
+  const di=v('f-di'),df=v('f-df');
+  const pg=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
+  const giorni=calcolaGiorni(di,df);
+  const el=document.getElementById('f-prezzo-calc');
+  if(el)el.value=giorni>0&&pg>0?`€ ${fN(pg*giorni)} (${giorni}gg × €${fN(pg)})`:'—';
+}
+
 function selKmOpt(opt){
   ['illimitati','giornalieri','totali'].forEach(o=>{
     document.getElementById('kmo-'+o)?.classList.toggle('sel',o===opt);
@@ -2230,17 +2921,48 @@ function selKmOpt(opt){
   const lbl=document.getElementById('f-km-lbl');
   if(lbl)lbl.textContent=opt==='giornalieri'?'KM/giorno *':'KM totali *';
 }
+
+function aggiornaDfMin(){
+  const di=document.getElementById('f-di')?.value;
+  const df=document.getElementById('f-df');
+  if(!di||!df)return;
+  df.min=di;
+  if(df.value&&df.value<=di)df.value='';
+  calcolaPrezzo();
+}
+
 async function saveNoleggio(){
-  const cid=v('f-cid'),vid=v('f-vid'),di=v('f-di'),df=v('f-df'),pz=parseFloat(v('f-prezzo'));
+  const cid=v('f-cid'),vid=v('f-vid'),di=v('f-di'),df=v('f-df');
+  const mode=v('f-prezzo-mode')||'forfait';
   if(!cid){toast('Seleziona cliente','err');return;}
   if(!vid){toast('Seleziona veicolo','err');return;}
-  if(!di||!df){toast('Date obbligatorie','err');return;}
-  if(new Date(df)<=new Date(di)){toast('Data fine deve essere dopo inizio','err');return;}
-  if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
+  if(!di){toast('Data inizio obbligatoria','err');return;}
+  if(!df){toast('Data fine obbligatoria','err');return;}
+  if(df<di){toast('La data fine non può essere precedente alla data inizio','err');return;}
+  const giorni=calcolaGiorni(di,df);
+  let pz,prezzoGiornaliero=null;
+  if(mode==='giorno'){
+    prezzoGiornaliero=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
+    if(!prezzoGiornaliero||prezzoGiornaliero<=0){toast('Inserisci il prezzo giornaliero','err');return;}
+    pz=Math.round(prezzoGiornaliero*giorni*100)/100;
+  } else {
+    pz=parseFloat(v('f-prezzo'));
+    if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
+  }
   const kmTipo=v('f-km-tipo');
   const kmNum=parseInt(v('f-km-num'))||0;
   if(kmTipo!=='illimitati'&&kmNum<=0){toast('Inserisci i KM inclusi','err');return;}
-  const noleggio={id:uid(),customer_id:cid,vehicle_id:vid,data_inizio:di,data_fine:df,prezzo:pz,stato:'attivo',km_tipo:kmTipo,km_inclusi:kmTipo==='illimitati'?null:kmNum,created_at:Date.now()};
+  const noleggio={
+    id:uid(),customer_id:cid,vehicle_id:vid,
+    data_inizio:di,data_fine:df,
+    prezzo:pz,
+    modalita_prezzo:mode,
+    prezzo_giornaliero:prezzoGiornaliero,
+    stato:'attivo',
+    km_tipo:kmTipo,
+    km_inclusi:kmTipo==='illimitati'?null:kmNum,
+    created_at:Date.now()
+  };
   DATA.noleggi.push(noleggio);
   const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='noleggiato';
   closeSheet();renderAll();renderDocs();toast('Noleggio creato! 🎉');await syncUp();
@@ -2262,8 +2984,8 @@ function bVendita(body,d){
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="ios-f"><label>Data vendita *</label><input id="f-dataV" type="date" value="${today}"></div>
+        <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="ios-f"><label>Data vendita *</label><input id="f-dataV" type="date" value="${today}" style="text-align:left"></div>
       </div>
     </div>
     <button class="ios-btn primary" onclick="saveVendita()" style="margin-top:6px" ${!dispVendita.length?'disabled':''}>Registra Vendita</button>`;
@@ -2283,7 +3005,8 @@ async function saveVendita(){
 }
 
 /* ── DDT FORM ── */
-function bDdt(body){
+function bDdt(body,d){
+  const fromNoleggio=d?._fromNoleggio||null;
   const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
   const vl=[...DATA.veicoli].sort((a,b)=>a.marca.localeCompare(b.marca));
   const today=new Date().toISOString().split('T')[0];
@@ -2291,7 +3014,14 @@ function bDdt(body){
   const num='DDT-'+(Date.now()%100000).toString().padStart(5,'0');
   const carbOpts=['pieno','tre-quarti','meta','un-quarto','riserva'];
   const carbLabel=c=>c==='pieno'?'⛽ Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½ Metà':c==='un-quarto'?'¼':c==='riserva'?'⚠ Riserva':c;
+  const preCid=d?.customer_id||'';
+  const preVid=d?.vehicle_id||'';
+  const preDataCons=d?.data_consegna||today;
+  const preData=d?.data||today;
+  const preCausale=d?.causale||'';
   body.innerHTML=`
+    ${fromNoleggio?`<div style="background:var(--teal-bg);border:1px solid var(--teal);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--teal);font-weight:500">
+      📦 DDT pre-compilato dal contratto — verifica e conferma i dati</div>`:''}
     <div class="fsec"><div class="fsec-title">Tipo</div>
       <div class="ddt-sel">
         <div class="ddt-card sel" id="ddt-t-noleggio" onclick="selDdtType('noleggio')"><div class="ddt-card-icon">📦</div><div class="ddt-card-lbl">Noleggio</div><div class="ddt-card-sub">Consegna veicolo</div></div>
@@ -2302,36 +3032,36 @@ function bDdt(body){
     <div class="fsec"><div class="fsec-title">Documento</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Numero</label><input id="f-ddt-num" value="${num}"></div>
-        <div class="ios-f"><label>Data doc. *</label><input id="f-ddt-data" type="date" value="${today}"></div>
+        <div class="ios-f"><label>Data doc. *</label><input id="f-ddt-data" type="date" value="${preData}" style="text-align:left"></div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Consegna veicolo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Data consegna *</label><input id="f-ddt-data-cons" type="date" value="${today}"></div>
-        <div class="ios-f"><label>Ora consegna *</label><input id="f-ddt-ora-cons" type="time" value="${nowTime}"></div>
+        <div class="ios-f"><label>Data consegna *</label><input id="f-ddt-data-cons" type="date" value="${preDataCons}" style="text-align:left"></div>
+        <div class="ios-f"><label>Ora consegna *</label><input id="f-ddt-ora-cons" type="time" value="${nowTime}" style="text-align:left"></div>
       </div>
       <div style="padding:6px 2px 4px;font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:.06em">Carburante alla consegna *</div>
-      <div class="carb-grid">
-        ${carbOpts.map(c=>`<button class="carb-btn" id="ddt-carb-${c}" onclick="selDdtCarb('${c}')">${carbLabel(c)}</button>`).join('')}
-      </div>
+      <div class="carb-grid">${carbOpts.map(c=>`<button class="carb-btn" id="ddt-carb-${c}" onclick="selDdtCarb('${c}')">${carbLabel(c)}</button>`).join('')}</div>
       <input type="hidden" id="f-ddt-carb" value="">
     </div>
     <div class="fsec"><div class="fsec-title">Parti</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Destinatario *</label><select id="f-ddt-cid"><option value="">Seleziona…</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Veicolo *</label><select id="f-ddt-vid"><option value="">Seleziona…</option>${vl.map(x=>`<option value="${x.id}">${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Destinatario *</label><select id="f-ddt-cid"><option value="">Seleziona…</option>${cl.map(c=>`<option value="${c.id}"${c.id===preCid?' selected':''}>` + nomeAnagrafica(c) + `</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Veicolo *</label><select id="f-ddt-vid"><option value="">Seleziona…</option>${vl.map(x=>`<option value="${x.id}"${x.id===preVid?' selected':''}>` + x.marca+' '+x.modello+' – '+x.targa + `</option>`).join('')}</select></div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Trasporto</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Causale</label><input id="f-ddt-causale" placeholder="Noleggio / Vendita"></div>
-        <div class="ios-f"><label>Luogo consegna</label><input id="f-ddt-luogo" placeholder="Via Roma 1, Milano"></div>
+        <div class="ios-f"><label>Causale</label><input id="f-ddt-causale" placeholder="Noleggio / Vendita" value="${preCausale}"></div>
+        <div class="ios-f"><label>Luogo consegna</label><input id="f-ddt-luogo" placeholder="Luogo…"></div>
         <div class="ios-f"><label>Vettore</label><input id="f-ddt-vettore" placeholder="Mittente"></div>
-        <div class="ios-f"><label>Importo €</label><input id="f-ddt-importo" type="number" step="0.01" placeholder="0.00"></div>
+        <div class="ios-f"><label>Importo €</label><input id="f-ddt-importo" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
       </div>
     </div>
+    <input type="hidden" id="f-ddt-noleggio-id" value="${fromNoleggio||''}">
     <button class="ios-btn primary" onclick="saveDdt()" style="margin-top:6px">Crea DDT</button>`;
 }
+
 function selDdtType(t){document.getElementById('ddt-t-noleggio').classList.toggle('sel',t==='noleggio');document.getElementById('ddt-t-vendita').classList.toggle('sel',t==='vendita');document.getElementById('f-ddt-tipo').value=t;}
 function selDdtCarb(c){
   ['pieno','tre-quarti','meta','un-quarto','riserva'].forEach(x=>document.getElementById('ddt-carb-'+x)?.classList.remove('sel'));
@@ -2341,12 +3071,15 @@ function selDdtCarb(c){
 async function saveDdt(){
   const cid=v('f-ddt-cid'),vid=v('f-ddt-vid'),data=v('f-ddt-data'),tipo=v('f-ddt-tipo');
   const dataConsegna=v('f-ddt-data-cons'),oraConsegna=v('f-ddt-ora-cons'),carburante=v('f-ddt-carb');
+  const noleggioId=document.getElementById('f-ddt-noleggio-id')?.value||'';
   if(!cid||!vid||!data){toast('Destinatario, veicolo e data obbligatori','err');return;}
   if(!dataConsegna||!oraConsegna){toast('Data e ora consegna obbligatorie','err');return;}
   if(!carburante){toast('Seleziona il livello carburante','err');return;}
   const vx=DATA.veicoli.find(x=>x.id===vid);
   DATA.ddt.push({
-    id:uid(),tipo,numero:v('f-ddt-num'),customer_id:cid,vehicle_id:vid,
+    id:uid(),tipo,numero:v('f-ddt-num'),
+    customer_id:cid,vehicle_id:vid,
+    noleggio_id:noleggioId||null,  // collegamento al contratto
     data,data_consegna:dataConsegna,ora_consegna:oraConsegna,
     carburante_consegna:carburante,
     causale:v('f-ddt-causale'),luogo_consegna:v('f-ddt-luogo'),
@@ -2360,35 +3093,143 @@ async function saveDdt(){
 function bExpense(body,d){
   const vl=[...DATA.veicoli].sort((a,b)=>a.marca.localeCompare(b.marca));
   const sl=[...DATA.suppliers].sort((a,b)=>(a.nome||'').localeCompare(b.nome||''));
+  const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
   const today=new Date().toISOString().split('T')[0];
   const preVehicle=d?.vehicle_id||'';
+
+  // Determina stato veicolo preselezionato per adattare le opzioni tipo
+  const preVx=DATA.veicoli.find(x=>x.id===preVehicle);
+  const isVenduto=preVx?.stato==='venduto';
+
+  // Tipi costo disponibili per stato veicolo:
+  // venduto → solo garanzia
+  // altri stati → tutti i tipi standard + garanzia
+  const tipiStandard=[
+    {v:'manutenzione',  l:'🔧 Manutenzione'},
+    {v:'assicurazione', l:'🛡 Assicurazione'},
+    {v:'bollo',         l:'📋 Bollo'},
+    {v:'riparazione',   l:'🔩 Riparazione'},
+    {v:'revisione',     l:'🔬 Revisione'},
+    {v:'altro',         l:'📌 Altro'},
+  ];
+  const tipoGaranzia={v:'garanzia',l:'🛡 Garanzia post-vendita'};
+  const tipiDisponibili=isVenduto?[tipoGaranzia]:[...tipiStandard,tipoGaranzia];
+
+  // Collega vendita e cliente se garanzia
+  const venditeVeicolo=preVehicle?DATA.sales.filter(s=>s.vehicle_id===preVehicle):[];
+
   body.innerHTML=`
-    <div class="fsec"><div class="fsec-title">Veicolo e tipo</div>
+    <div class="fsec"><div class="fsec-title">Veicolo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Veicolo *</label><select id="f-exp-vid"><option value="">Seleziona…</option>${vl.map(x=>`<option value="${x.id}"${x.id===preVehicle?' selected':''}>${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Tipo *</label><select id="f-exp-tipo"><option value="">Seleziona…</option>${['manutenzione','assicurazione','bollo','riparazione','altro'].map(t=>`<option value="${t}"${d?.tipo===t?' selected':''}>${t[0].toUpperCase()+t.slice(1)}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Stato</label><select id="f-exp-stato"><option value="in corso"${d?.stato==='in corso'?' selected':''}>In corso</option><option value="completato"${d?.stato==='completato'?' selected':''}>Completato</option></select></div>
+        <div class="ios-f"><label>Veicolo *</label>
+          <select id="f-exp-vid" onchange="onExpVeicoloChange(this.value)">
+            <option value="">Seleziona…</option>
+            ${vl.map(x=>{
+              const badge=x.stato==='venduto'?' [Venduto]':x.stato==='noleggiato'?' [Noleggiato]':'';
+              return`<option value="${x.id}"${x.id===preVehicle?' selected':''}>${x.marca} ${x.modello} – ${x.targa}${badge}</option>`;
+            }).join('')}
+          </select>
+        </div>
+      </div>
+      ${isVenduto?`<p style="font-size:12px;color:var(--orange);padding:4px 2px">⚠ Veicolo venduto: sono consentiti solo costi di tipo <strong>Garanzia</strong>.</p>`:''}
+    </div>
+    <div class="fsec"><div class="fsec-title">Tipo e stato</div>
+      <div class="ios-fg" id="f-exp-tipo-wrap">
+        <div class="ios-f"><label>Tipo *</label>
+          <select id="f-exp-tipo" onchange="onExpTipoChange(this.value)">
+            <option value="">Seleziona…</option>
+            ${tipiDisponibili.map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
+          </select>
+        </div>
+        <div class="ios-f"><label>Stato</label>
+          <select id="f-exp-stato">
+            <option value="in corso"${d?.stato==='in corso'?' selected':''}>In corso</option>
+            <option value="completato"${d?.stato==='completato'?' selected':''}>Completato</option>
+          </select>
+        </div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Descrizione</label><input id="f-exp-desc" placeholder="Es: Cambio olio…" value="${esc(d?.descrizione||'')}"></div>
-        <div class="ios-f"><label>Costo (€) *</label><input id="f-exp-costo" type="number" step="0.01" min="0" placeholder="0.00" value="${d?.costo||''}"></div>
-        <div class="ios-f"><label>Data *</label><input id="f-exp-data" type="date" value="${d?.data||today}"></div>
-        <div class="ios-f"><label>Fornitore</label><select id="f-exp-sup"><option value="">Nessuno</option>${sl.map(s=>`<option value="${s.id}"${d?.fornitore_id===s.id?' selected':''}>${s.nome}${s.tipo?' ('+s.tipo+')':''}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Costo (€) *</label><input id="f-exp-costo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.costo||''}"></div>
+        <div class="ios-f"><label>Data *</label><input id="f-exp-data" type="date" value="${d?.data||today}" style="text-align:left"></div>
+        <div class="ios-f"><label>Fornitore</label>
+          <select id="f-exp-sup">
+            <option value="">Nessuno</option>
+            ${sl.map(s=>`<option value="${s.id}"${d?.fornitore_id===s.id?' selected':''}>${s.nome}${s.tipo?' ('+s.tipo+')':''}</option>`).join('')}
+          </select>
+        </div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Periodicità</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Ricorrenza</label><select id="f-exp-period">
-          <option value="una-tantum"${(!d?.periodicita||d?.periodicita==='una-tantum')?' selected':''}>Una tantum</option>
-          <option value="mensile"${d?.periodicita==='mensile'?' selected':''}>Mensile</option>
-          <option value="annuale"${d?.periodicita==='annuale'?' selected':''}>Annuale</option>
-        </select></div>
+        <div class="ios-f"><label>Ricorrenza</label>
+          <select id="f-exp-period">
+            <option value="una-tantum"${(!d?.periodicita||d?.periodicita==='una-tantum')?' selected':''}>Una tantum</option>
+            <option value="mensile"${d?.periodicita==='mensile'?' selected':''}>Mensile</option>
+            <option value="annuale"${d?.periodicita==='annuale'?' selected':''}>Annuale</option>
+          </select>
+        </div>
       </div>
-      <p style="font-size:12px;color:var(--label3);padding:4px 2px">Le spese mensili/annuali mostrano la prossima scadenza nel report.</p>
+    </div>
+    <!-- Sezione garanzia: visibile solo se tipo = garanzia -->
+    <div class="fsec" id="f-exp-garanzia-section" style="display:${d?.tipo==='garanzia'?'block':'none'}">
+      <div class="fsec-title">Garanzia post-vendita</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Cliente</label>
+          <select id="f-exp-cliente">
+            <option value="">Nessuno</option>
+            ${cl.map(c=>`<option value="${c.id}"${d?.garanzia_cliente_id===c.id?' selected':''}>${nomeAnagrafica(c)}</option>`).join('')}
+          </select>
+        </div>
+        ${venditeVeicolo.length?`<div class="ios-f"><label>Contratto vendita</label>
+          <select id="f-exp-sale">
+            <option value="">Nessuno</option>
+            ${venditeVeicolo.map(s=>{const c2=DATA.clienti.find(x=>x.id===s.customer_id)||{};return`<option value="${s.id}"${d?.garanzia_sale_id===s.id?' selected':''}>Vendita ${fD(s.data)} — ${nomeAnagrafica(c2)}</option>`;}).join('')}
+          </select>
+        </div>`:''}
+        <div class="ios-f"><label>Scade il</label><input id="f-exp-garanzia-scad" type="date" value="${d?.garanzia_scadenza||''}" style="text-align:left"></div>
+      </div>
+      <p style="font-size:11px;color:var(--label3);padding:4px 2px">Collega la garanzia al cliente e al contratto di vendita per tracciabilità completa.</p>
     </div>
     <button class="ios-btn primary" onclick="saveExpense()" style="margin-top:6px">${d?.id?'Aggiorna Costo':'Aggiungi Costo'}</button>`;
+
+  // Dopo il render: se veicolo venduto o tipo pre-impostato a garanzia,
+  // assicura che il select mostri garanzia e la sezione sia visibile
+  const preTipo=isVenduto?'garanzia':(d?.tipo||'');
+  if(preTipo){
+    setTimeout(()=>{
+      const tipoSel=document.getElementById('f-exp-tipo');
+      if(tipoSel&&tipoSel.value!==preTipo){tipoSel.value=preTipo;}
+      onExpTipoChange(preTipo);
+    },0);
+  }
+}
+
+/* Aggiorna tipi disponibili quando cambia veicolo */
+function onExpVeicoloChange(vid){
+  const vx=DATA.veicoli.find(x=>x.id===vid);
+  const isVenduto=vx?.stato==='venduto';
+  const tipiStandard=[
+    {v:'manutenzione',l:'🔧 Manutenzione'},{v:'assicurazione',l:'🛡 Assicurazione'},
+    {v:'bollo',l:'📋 Bollo'},{v:'riparazione',l:'🔩 Riparazione'},
+    {v:'revisione',l:'🔬 Revisione'},{v:'altro',l:'📌 Altro'},
+  ];
+  const tipoGaranzia={v:'garanzia',l:'🛡 Garanzia post-vendita'};
+  const tipiDisponibili=isVenduto?[tipoGaranzia]:[...tipiStandard,tipoGaranzia];
+  const sel=document.getElementById('f-exp-tipo');
+  if(sel){
+    sel.innerHTML=`<option value="">Seleziona…</option>`+tipiDisponibili.map(t=>`<option value="${t.v}">${t.l}</option>`).join('');
+    if(isVenduto)sel.value='garanzia';
+  }
+  onExpTipoChange(isVenduto?'garanzia':'');
+}
+
+/* Mostra/nasconde sezione garanzia */
+function onExpTipoChange(tipo){
+  const sec=document.getElementById('f-exp-garanzia-section');
+  if(sec)sec.style.display=tipo==='garanzia'?'block':'none';
 }
 async function saveExpense(){
   const vid=v('f-exp-vid'),tipo=v('f-exp-tipo'),costo=parseFloat(v('f-exp-costo')),data=v('f-exp-data'),stato=v('f-exp-stato');
@@ -2396,18 +3237,37 @@ async function saveExpense(){
   if(!tipo){toast('Seleziona tipo','err');return;}
   if(!costo||costo<=0){toast('Costo non valido','err');return;}
   if(!data){toast('Data obbligatoria','err');return;}
+
+  // Validazione: veicolo venduto può avere SOLO garanzia
+  const vx=DATA.veicoli.find(x=>x.id===vid);
+  const tipiStandard=['manutenzione','assicurazione','bollo','riparazione','revisione','altro'];
+  if(vx?.stato==='venduto'&&tipiStandard.includes(tipo)){
+    toast('Veicolo venduto: sono consentiti solo costi di tipo Garanzia','err');return;
+  }
+
   const r={
-    id:curForm.data?.id||uid(),vehicle_id:vid,tipo,
+    id:curForm.data?.id||uid(),
+    vehicle_id:vid,tipo,
     descrizione:v('f-exp-desc'),costo,data,stato,
     fornitore_id:v('f-exp-sup'),
     periodicita:v('f-exp-period')||'una-tantum',
     created_at:curForm.data?.created_at||Date.now()
   };
+
+  // Salva campi garanzia se tipo = garanzia
+  if(tipo==='garanzia'){
+    r.garanzia_cliente_id=document.getElementById('f-exp-cliente')?.value||'';
+    r.garanzia_sale_id=document.getElementById('f-exp-sale')?.value||'';
+    r.garanzia_scadenza=document.getElementById('f-exp-garanzia-scad')?.value||'';
+  }
+
   upsert('expenses',r);
+
+  // Metti in manutenzione solo per tipi che lo richiedono (non venduto, non garanzia)
   if(stato==='in corso'&&['manutenzione','riparazione'].includes(tipo)){
-    const vx=DATA.veicoli.find(x=>x.id===vid);
     if(vx&&vx.stato==='disponibile')vx.stato='manutenzione';
   }
+
   closeSheet();renderAll();renderGest();toast('Costo salvato!');await syncUp();
 }
 
@@ -2603,7 +3463,7 @@ function renderAnalisiIn(body){
   const clienti=DATA.clienti;
   if(!clienti.length){body.innerHTML=`<div class="empty-state"><div class="ei">📊</div><h3>Nessun cliente</h3></div>`;return;}
   const today=new Date();
-  function age(dn){if(!dn)return null;const d=new Date(dn);return Math.floor((today-d)/(365.25*24*3600*1000));}
+  function age(dn){if(!dn)return null;const d=new Date(dn.includes('T')?dn:dn+'T00:00:00');return Math.floor((today-d)/(365.25*24*3600*1000));}
   const ages=clienti.map(c=>age(c.data_nascita)).filter(a=>a!=null&&a>0&&a<120);
   const avgAge=ages.length?Math.round(ages.reduce((s,a)=>s+a,0)/ages.length):0;
   const fasce=[{lbl:'18–25',min:18,max:25},{lbl:'26–40',min:26,max:40},{lbl:'41–60',min:41,max:60},{lbl:'60+',min:61,max:999}].map(f=>({...f,n:ages.filter(a=>a>=f.min&&a<=f.max).length}));
@@ -2656,58 +3516,106 @@ function remStatus(r){
   if(diff<=7)return'soon';
   return'ok';
 }
-function updateScadenzeBadge(){
-  const urgent=DATA.reminders.filter(r=>r.stato!=='completato'&&remStatus(r)!=='ok').length;
-  const tab=document.getElementById('tab-scadenze');if(!tab)return;
-  let badge=tab.querySelector('.tab-badge');
-  if(urgent>0){if(!badge){badge=document.createElement('span');badge.className='tab-badge';tab.appendChild(badge);}badge.textContent=urgent;}
-  else if(badge)badge.remove();
+/* Icona per tipo scadenza */
+function remIcon(tipo){
+  const icons={assicurazione:'🛡️',bollo:'📋',revisione:'🔬',tagliando:'🔩',patente:'🪪',affitto:'🏠',utenze:'💡',stipendio:'👤',tasse:'💼',assicurazione_aziendale:'🏢',software:'💻',manutenzione_sede:'🔨',altro:'📌'};
+  return icons[tipo]||'⏰';
 }
+
+let scadFilter='tutti';
+function setScadFilter(f,btn){
+  scadFilter=f;
+  document.querySelectorAll('#scad-filter-pills .pill').forEach(p=>p.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderScadenze();
+}
+
 function renderScadenze(){
   const body=document.getElementById('scadenze-body');if(!body)return;
   const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
-  const cM=Object.fromEntries(DATA.clienti.map(c=>[c.id,c]));
+  const tipiVeicolo=['assicurazione','bollo','revisione','tagliando','patente'];
+
+  // Filtra per categoria
+  let list=[...DATA.reminders];
+  if(scadFilter==='veicolo') list=list.filter(r=>r.riferimento_tipo==='veicolo');
+  else if(scadFilter==='generale') list=list.filter(r=>r.riferimento_tipo==='generale'||!tipiVeicolo.includes(r.tipo));
+  else if(scadFilter!=='tutti') list=list.filter(r=>r.tipo===scadFilter);
+
   const grouped={expired:[],soon:[],ok:[]};
-  [...DATA.reminders].sort((a,b)=>a.data_scadenza.localeCompare(b.data_scadenza)).forEach(r=>{
+  list.sort((a,b)=>(a.data_scadenza||'').localeCompare(b.data_scadenza||'')).forEach(r=>{
     grouped[r.stato==='completato'?'ok':remStatus(r)].push(r);
   });
+
   function remRow(r){
     const st=remStatus(r);
-    const ref=r.riferimento_tipo==='veicolo'?vM[r.riferimento_id]:cM[r.riferimento_id];
-    const refName=ref?(r.riferimento_tipo==='veicolo'?`${ref.marca||''} ${ref.modello||''} ${ref.targa||''}`:ref.cognome+' '+ref.nome):'—';
+    const isGen=r.riferimento_tipo==='generale'||!['veicolo'].includes(r.riferimento_tipo);
+    const vx=vM[r.riferimento_id];
+    const refName=isGen
+      ?(r.note||'—')
+      :(vx?`${vx.marca||''} ${vx.modello||''} · ${vx.targa||''}`.trim():'—');
     const today=new Date();today.setHours(0,0,0,0);
-    const scad=new Date(r.data_scadenza+'T00:00:00');
+    const scad=new Date((r.data_scadenza||'')+'T00:00:00');
     const diff=Math.floor((scad-today)/(24*3600*1000));
-    const diffLabel=r.stato==='completato'?'Completato':diff<0?`Scaduta ${Math.abs(diff)} gg fa`:diff===0?'Scade oggi!':diff<=7?`Tra ${diff} gg`:`${fD(r.data_scadenza)}`;
+    const diffLabel=r.stato==='completato'?'Completato'
+      :diff<0?`Scaduta ${Math.abs(diff)}gg fa`
+      :diff===0?'Scade oggi!'
+      :diff<=7?`Tra ${diff}gg`
+      :fD(r.data_scadenza);
     const badgeCls=r.stato==='completato'?'reminder-badge-ok':st==='expired'?'reminder-badge-expired':'reminder-badge-soon';
-    return`<div class="ios-row" onclick="showReminder('${r.id}')"><div class="ios-row-icon" style="background:${st==='expired'?'var(--red-bg)':st==='soon'?'var(--orange-bg)':'var(--green-bg)'}">
-      ${r.tipo==='assicurazione'?'🛡️':r.tipo==='bollo'?'📋':r.tipo==='revisione'?'🔬':r.tipo==='patente'?'🪪':'⏰'}
-    </div><div class="ios-row-body"><div class="ios-row-title">${r.descrizione||r.tipo}</div><div class="ios-row-sub">${refName}</div></div>
-    <span class="${badgeCls}">${diffLabel}</span></div>`;
+    const bgColor=st==='expired'?'var(--red-bg)':st==='soon'?'var(--orange-bg)':'var(--green-bg)';
+    return`<div class="ios-row" onclick="showReminder('${r.id}')">
+      <div class="ios-row-icon" style="background:${bgColor}">${remIcon(r.tipo)}</div>
+      <div class="ios-row-body">
+        <div class="ios-row-title">${r.descrizione||r.tipo?.replace(/_/g,' ')||'—'}</div>
+        <div class="ios-row-sub">${refName}${r.importo>0?' · €'+fN(r.importo):''}</div>
+      </div>
+      <span class="${badgeCls}">${diffLabel}</span>
+    </div>`;
   }
-  function grp(list,label){if(!list.length)return'';return`<div class="list-section"><div class="list-header">${label} (${list.length})</div><div class="ios-list">${list.map(remRow).join('')}</div></div>`;}
-  body.innerHTML=!DATA.reminders.length
-    ?`<div class="empty-state"><div class="ei">🔔</div><h3>Nessuna scadenza</h3><p>Aggiungi con + assicurazioni, bollo, revisioni</p></div>`
-    :`${grp(grouped.expired,'🔴 Scaduti')}${grp(grouped.soon,'🟡 In scadenza entro 7 giorni')}${grp(grouped.ok,'✅ Nei tempi')}`;
+
+  function grp(list,label){
+    if(!list.length)return'';
+    return`<div class="list-section"><div class="list-header">${label} (${list.length})</div><div class="ios-list">${list.map(remRow).join('')}</div></div>`;
+  }
+
+  const totUrgente=(grouped.expired.concat(grouped.soon)).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
+  const headerExtra=totUrgente>0?`<div style="background:var(--red-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:var(--red);font-weight:600">⚠ Importi scaduti/in scadenza</span><span style="font-size:16px;font-weight:700;color:var(--red)">€ ${fN(totUrgente)}</span></div>`:'';
+
+  const isEmpty=!grouped.expired.length&&!grouped.soon.length&&!grouped.ok.length;
+  body.innerHTML=isEmpty
+    ?`<div class="empty-state"><div class="ei">🔔</div><h3>Nessuna scadenza${scadFilter!=='tutti'?' per questo filtro':''}</h3><p>Aggiungi con +</p></div>`
+    :headerExtra+`${grp(grouped.expired,'🔴 Scaduti')}${grp(grouped.soon,'🟡 In scadenza entro 7 giorni')}${grp(grouped.ok,'✅ Nei tempi')}`;
 }
+
 function showReminder(id){
   const r=DATA.reminders.find(x=>x.id===id);if(!r)return;
   const st=remStatus(r);
   const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
-  const cM=Object.fromEntries(DATA.clienti.map(c=>[c.id,c]));
-  const ref=r.riferimento_tipo==='veicolo'?vM[r.riferimento_id]:cM[r.riferimento_id];
-  const refName=ref?(r.riferimento_tipo==='veicolo'?`${ref.marca||''} ${ref.modello||''} ${ref.targa||''}`:ref.cognome+' '+ref.nome):'—';
+  const isGen=r.riferimento_tipo==='generale'||!['veicolo'].includes(r.riferimento_tipo);
+  const vx=vM[r.riferimento_id];
+  const refName=isGen?(r.note||'—'):(vx?`${vx.marca||''} ${vx.modello||''} · ${vx.targa||''}`.trim():'—');
+  const today=new Date();today.setHours(0,0,0,0);
+  const scad=new Date((r.data_scadenza||'')+'T00:00:00');
+  const diff=Math.floor((scad-today)/(24*3600*1000));
+  const diffLabel=r.stato==='completato'?'Completato':diff<0?`Scaduta ${Math.abs(diff)} giorni fa`:diff===0?'Scade oggi!':diff<=7?`Tra ${diff} giorni`:`${fD(r.data_scadenza)}`;
+  const badgeCls=r.stato==='completato'?'reminder-badge-ok':st==='expired'?'reminder-badge-expired':'reminder-badge-soon';
+
   document.getElementById('detail-title').textContent='Scadenza';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">${r.tipo==='assicurazione'?'🛡️':r.tipo==='bollo'?'📋':r.tipo==='revisione'?'🔬':'⏰'}</div>
-      <div class="hero-name">${r.descrizione||r.tipo}</div><div class="hero-sub">${refName}</div>
-      <div style="margin-top:10px"><span class="${r.stato==='completato'?'reminder-badge-ok':st==='expired'?'reminder-badge-expired':'reminder-badge-soon'}">${r.stato==='completato'?'Completato':fD(r.data_scadenza)}</span></div>
+      <div style="font-size:46px;margin-bottom:8px">${remIcon(r.tipo)}</div>
+      <div class="hero-name">${r.descrizione||r.tipo}</div>
+      <div class="hero-sub">${isGen?'Scadenza generale':'Veicolo: '+refName}</div>
+      <div style="margin-top:10px"><span class="${badgeCls}">${diffLabel}</span></div>
+      ${r.importo>0?`<div style="margin-top:8px;font-size:20px;font-weight:700;color:var(--orange)">€ ${fN(r.importo)}</div>`:''}
     </div>
     <div class="list-section"><div class="list-header">Dettagli</div><div class="ios-list">
-      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Tipo</div><div class="ios-row-title" style="text-transform:capitalize">${r.tipo}</div></div></div>
-      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Riferimento</div><div class="ios-row-title">${refName}</div></div></div>
+      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Tipo</div><div class="ios-row-title" style="text-transform:capitalize">${r.tipo?.replace(/_/g,' ')||'—'}</div></div></div>
+      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Categoria</div><div class="ios-row-title">${isGen?'🏢 Generale':'🚗 Veicolo'}</div></div></div>
+      ${!isGen&&vx?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Veicolo</div><div class="ios-row-title">${vx.marca||''} ${vx.modello||''} · ${vx.targa||''}</div></div></div>`:''}
+      ${r.note?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title">${r.note}</div></div></div>`:''}
       <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data scadenza</div><div class="ios-row-title">${fD(r.data_scadenza)}</div></div></div>
+      ${r.importo>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo</div><div class="ios-row-title" style="color:var(--orange);font-weight:700">€ ${fN(r.importo)}</div></div></div>`:''}
     </div></div>
     <div class="btn-stack" style="margin-top:8px">
       ${r.stato!=='completato'?`<button class="ios-btn success" onclick="completaReminder('${id}')">✅ Segna completato</button>`:''}
@@ -2725,41 +3633,102 @@ function bReminder(body,d){
   const vl=[...DATA.veicoli].sort((a,b)=>a.marca.localeCompare(b.marca));
   const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
   const today=new Date().toISOString().split('T')[0];
+
+  const tipiVeicolo=[
+    {v:'assicurazione',l:'🛡 Assicurazione'},
+    {v:'bollo',l:'📋 Bollo'},
+    {v:'revisione',l:'🔧 Revisione'},
+    {v:'tagliando',l:'🔩 Tagliando'},
+    {v:'patente',l:'🪪 Patente'},
+  ];
+  const tipiGenerali=[
+    {v:'affitto',l:'🏠 Affitto'},
+    {v:'utenze',l:'💡 Utenze'},
+    {v:'stipendio',l:'👤 Stipendio/Collaboratore'},
+    {v:'tasse',l:'💼 Tasse/Contributi'},
+    {v:'assicurazione_aziendale',l:'🏢 Assicurazione aziendale'},
+    {v:'software',l:'💻 Abbonamento software'},
+    {v:'manutenzione_sede',l:'🔨 Manutenzione sede'},
+    {v:'altro',l:'📌 Altro'},
+  ];
+
+  const currentRif=d?.riferimento_tipo||'veicolo';
+  const isGen=d?.tipo&&!tipiVeicolo.find(t=>t.v===d.tipo);
+
   body.innerHTML=`
+    <div class="fsec"><div class="fsec-title">Categoria</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
+        <button class="km-opt ${!isGen?'sel':''}" id="rem-cat-veicolo" onclick="selRemCat('veicolo')" style="font-size:12px">🚗<br><span style="font-size:10px">Veicolo</span></button>
+        <button class="km-opt ${isGen?'sel':''}" id="rem-cat-generale" onclick="selRemCat('generale')" style="font-size:12px">🏢<br><span style="font-size:10px">Generale</span></button>
+      </div>
+    </div>
+
     <div class="fsec"><div class="fsec-title">Tipo e data</div><div class="ios-fg">
       <div class="ios-f"><label>Tipo *</label><select id="f-rem-tipo">
         <option value="">Seleziona…</option>
-        ${['assicurazione','bollo','revisione','patente','altro'].map(t=>`<option value="${t}"${d?.tipo===t?' selected':''}>${t[0].toUpperCase()+t.slice(1)}</option>`).join('')}
+        <optgroup label="Veicolo" id="rem-opts-veicolo">
+          ${tipiVeicolo.map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
+        </optgroup>
+        <optgroup label="Generale" id="rem-opts-generale" style="display:none">
+          ${tipiGenerali.map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
+        </optgroup>
       </select></div>
-      <div class="ios-f"><label>Descrizione</label><input id="f-rem-desc" placeholder="Es: Rinnovo assicurazione" value="${esc(d?.descrizione||'')}"></div>
-      <div class="ios-f"><label>Scadenza *</label><input id="f-rem-data" type="date" value="${d?.data_scadenza||today}"></div>
+      <div class="ios-f"><label>Descrizione</label><input id="f-rem-desc" placeholder="Es: Rinnovo assicurazione Panda" value="${esc(d?.descrizione||'')}"></div>
+      <div class="ios-f"><label>Importo €</label><input id="f-rem-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${esc(d?.importo||'')}"></div>
+      <div class="ios-f"><label>Scadenza *</label><input id="f-rem-data" type="date" value="${d?.data_scadenza||today}" style="text-align:left"></div>
     </div></div>
-    <div class="fsec"><div class="fsec-title">Riferimento</div><div class="ios-fg">
-      <div class="ios-f"><label>Riguarda</label><select id="f-rem-rif-tipo" onchange="aggiornaCampoRif()">
-        <option value="veicolo">Veicolo</option><option value="cliente">Cliente</option>
-      </select></div>
-      <div class="ios-f" id="f-rem-v-row"><label>Veicolo</label><select id="f-rem-vid">
-        <option value="">Nessuno</option>${vl.map(v=>`<option value="${v.id}">${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}
-      </select></div>
-      <div class="ios-f" id="f-rem-c-row" style="display:none"><label>Cliente</label><select id="f-rem-cid">
-        <option value="">Nessuno</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}
-      </select></div>
-    </div></div>
-    <button class="ios-btn primary" onclick="saveReminder()" style="margin-top:6px">Aggiungi Scadenza</button>`;
+
+    <div id="f-rem-rif-section" style="${isGen?'display:none':''}">
+      <div class="fsec"><div class="fsec-title">Veicolo</div><div class="ios-fg">
+        <div class="ios-f"><label>Veicolo</label><select id="f-rem-vid">
+          <option value="">Nessuno specifico</option>${vl.map(v=>`<option value="${v.id}"${d?.riferimento_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}
+        </select></div>
+      </div></div>
+    </div>
+
+    <div id="f-rem-gen-section" style="${!isGen?'display:none':''}">
+      <div class="fsec"><div class="fsec-title">Riferimento</div><div class="ios-fg">
+        <div class="ios-f"><label>Note</label><input id="f-rem-note" placeholder="Fornitore, numero contratto…" value="${esc(d?.note||'')}"></div>
+      </div></div>
+    </div>
+
+    <button class="ios-btn primary" onclick="saveReminder()" style="margin-top:6px">${d?.id?'Aggiorna':'Aggiungi'} Scadenza</button>`;
+
+  // Init categoria giusta se modifica
+  if(isGen) selRemCat('generale');
 }
-function aggiornaCampoRif(){
-  const t=v('f-rem-rif-tipo');
-  document.getElementById('f-rem-v-row').style.display=t==='veicolo'?'':'none';
-  document.getElementById('f-rem-c-row').style.display=t==='cliente'?'':'none';
+
+function selRemCat(cat){
+  document.getElementById('rem-cat-veicolo')?.classList.toggle('sel',cat==='veicolo');
+  document.getElementById('rem-cat-generale')?.classList.toggle('sel',cat==='generale');
+  document.getElementById('f-rem-rif-section').style.display=cat==='veicolo'?'':'none';
+  document.getElementById('f-rem-gen-section').style.display=cat==='generale'?'':'none';
+  // Show/hide option groups
+  const ogV=document.getElementById('rem-opts-veicolo');
+  const ogG=document.getElementById('rem-opts-generale');
+  if(ogV)ogV.style.display=cat==='veicolo'?'':'none';
+  if(ogG)ogG.style.display=cat==='generale'?'':'none';
+  document.getElementById('f-rem-tipo').value='';
 }
 async function saveReminder(){
   const tipo=v('f-rem-tipo'),data=v('f-rem-data');
   if(!tipo){toast('Seleziona tipo','err');return;}
   if(!data){toast('Data obbligatoria','err');return;}
-  const rifTipo=v('f-rem-rif-tipo');
-  const rifId=rifTipo==='veicolo'?v('f-rem-vid'):v('f-rem-cid');
-  DATA.reminders.push({id:uid(),tipo,descrizione:v('f-rem-desc'),data_scadenza:data,stato:'attivo',riferimento_tipo:rifTipo,riferimento_id:rifId,created_at:Date.now()});
-  closeSheet();renderScadenze();updateScadenzeBadge();toast('Scadenza aggiunta! 🔔');await syncUp();
+  const catVeicolo=document.getElementById('rem-cat-veicolo')?.classList.contains('sel');
+  const rifId=catVeicolo?(v('f-rem-vid')||''):'';
+  const rifTipo=catVeicolo?'veicolo':'generale';
+  DATA.reminders.push({
+    id:uid(),tipo,
+    descrizione:v('f-rem-desc'),
+    data_scadenza:data,
+    importo:parseFloat(document.getElementById('f-rem-importo')?.value)||0,
+    note:document.getElementById('f-rem-note')?.value?.trim()||'',
+    stato:'attivo',
+    riferimento_tipo:rifTipo,
+    riferimento_id:rifId,
+    created_at:Date.now()
+  });
+  closeSheet();renderScadenze();updateScadenzeBadge();toast('Scadenza aggiunta!');await syncUp();
 }
 
 /* ══════════════════════ DESTINAZIONE CAMBIO ══════════════════════ */
@@ -2780,71 +3749,174 @@ function cambiaDestinazione(veicoloId,nuovaDest){
   document.getElementById('dest-change-modal').classList.add('open');
 }
 
+/* ══════════════════════ PDF HELPERS ══════════════════════ */
 function openPdf(html){document.getElementById('pdf-content').innerHTML=html;document.getElementById('pdf-frame').classList.add('open');}
 function closePdf(){document.getElementById('pdf-frame').classList.remove('open');}
 
-function pdfHeader(docType=''){
+/* Calcola giorni tra due date YYYY-MM-DD */
+function calcolaGiorni(di,df){
+  if(!di||!df)return 0;
+  const a=new Date(di+'T00:00:00'),b=new Date(df+'T00:00:00');
+  const diff=Math.round((b-a)/(1000*60*60*24));
+  return Math.max(1,diff+1); // stesso giorno = 1, +1 per contare entrambi i giorni
+}
+
+/* Header PDF — genera HTML header completo e chiuso */
+function pdfHeader(){
   const S=SETTINGS;
   const logoHtml=S.logo_base64
-    ?`<img src="${S.logo_base64}" style="height:55px;object-fit:contain;max-width:140px" alt="${S.company_name||'D&D DedCar'}">`
-    :`<div style="width:48px;height:48px;background:#2563eb;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-left:auto">
-        <span style="color:#fff;font-size:20px;font-weight:800;font-family:Arial,sans-serif">D</span>
-      </div>`;
-  return `<div class="pdf-hdr">
+    ?`<img src="${S.logo_base64}" style="height:60px;max-width:150px;object-fit:contain;display:block;margin-left:auto" alt="${S.company_name||''}">`
+    :`<div style="width:50px;height:50px;background:#2563eb;border-radius:10px;display:flex;align-items:center;justify-content:center;margin-left:auto"><span style="color:#fff;font-size:22px;font-weight:800;font-family:Arial,sans-serif">D</span></div>`;
+  return `
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;padding-bottom:16px;margin-bottom:20px;border-bottom:3px solid #0f172a">
     <div>
-      <div class="pdf-company">${S.company_name||'D&D DedCar'}</div>
-      <div class="pdf-company-info">${[
-        S.company_address,
-        S.company_phone?'Tel: '+S.company_phone:'',
-        S.company_email?'Email: '+S.company_email:'',
-        S.company_piva?'P.IVA: '+S.company_piva:'',
-        S.iban?'IBAN: '+S.iban:''
-      ].filter(Boolean).join('<br>')}</div>
+      <div style="font-size:20px;font-weight:800;color:#0f172a;letter-spacing:-.3px">${S.company_name||'D&D DedCar'}</div>
+      <div style="font-size:11px;color:#475569;line-height:1.8;margin-top:4px">
+        ${[S.company_address,S.company_phone?'Tel: '+S.company_phone:'',S.company_email?'Email: '+S.company_email:'',S.company_piva?'P.IVA: '+S.company_piva:''].filter(Boolean).join(' &nbsp;|&nbsp; ')}
+      </div>
     </div>
-    <div style="text-align:right">${logoHtml}${docType?`<div style="margin-top:6px">`:''}`;
+    <div>${logoHtml}</div>
+  </div>`;
 }
 
 function genPdfNoleggio(id){
   const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
   const c=DATA.clienti.find(x=>x.id===n.customer_id)||{};
   const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
-  const S=SETTINGS,today=new Date().toLocaleDateString('it-IT'),num=id.slice(-6).toUpperCase();
-  const kmInfo=n.km_tipo==='illimitati'?'Illimitati':n.km_tipo==='giornalieri'?`${fN(n.km_inclusi)} km/giorno`:`${fN(n.km_inclusi)} km totali`;
+  const S=SETTINGS;
+  const today=new Date().toLocaleDateString('it-IT');
+  const num=id.slice(-6).toUpperCase();
   const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'Metà','un-quarto':'1/4','riserva':'Riserva'};
-  openPdf(`${pdfHeader()}<h1 style="font-size:15px;font-weight:700">CONTRATTO DI NOLEGGIO</h1><div class="pdf-num">N° ${num} — ${today}</div></div></div>
-    ${S.contract_header?`<p style="font-style:italic;color:#555;font-size:11px;margin-bottom:14px">${S.contract_header}</p>`:''}
-    <h2>Conducente</h2>
-    <table class="pdf-tbl">
-      <tr><td>Nominativo</td><td>${nomeAnagrafica(c)}</td></tr>
-      <tr><td>Data nascita</td><td>${fD(c.data_nascita)}</td></tr>
-      <tr><td>Luogo nascita</td><td>${c.luogo_nascita||'—'}</td></tr>
-      <tr><td>Nominativo tipo</td><td>${c.tipo_anagrafica==='azienda'?'Azienda':'Privato'}</td></tr><tr><td>Cod. Fiscale / P.IVA</td><td style="font-family:monospace">${c.tipo_anagrafica==='azienda'?(c.partita_iva||'—'):(c.codice_fiscale||'—')}</td></tr>
-      <tr><td>Telefono</td><td>${c.telefono||'—'}</td></tr>
-      <tr><td>Email</td><td>${c.email||'—'}</td></tr>
-    </table>
-    <h2>Veicolo</h2>
-    <table class="pdf-tbl">
-      <tr><td>Veicolo</td><td>${vx.marca||''} ${vx.modello||''}</td></tr>
-      <tr><td>Targa</td><td>${vx.targa||'—'}</td></tr>
-      <tr><td>Anno</td><td>${vx.anno||'—'}</td></tr>
-      <tr><td>Km alla consegna</td><td>${fN(n.km_inizio||vx.km)}</td></tr>
-      <tr><td>Carburante consegna</td><td>${carbLabels[n.carburante_inizio]||'—'}</td></tr>
-    </table>
-    <h2>Condizioni noleggio</h2>
-    <table class="pdf-tbl">
-      <tr><td>Data inizio</td><td>${fD(n.data_inizio)}</td></tr>
-      <tr><td>Data fine</td><td>${fD(n.data_fine)}</td></tr>
-      <tr><td>KM inclusi</td><td>${n.km_tipo?kmInfo:'—'}</td></tr>
-      <tr><td>Importo totale</td><td><strong>€ ${fN(n.prezzo)}</strong></td></tr>
-      ${S.iban?`<tr><td>IBAN pagamento</td><td>${S.iban}</td></tr>`:''}
-    </table>
-    ${S.contract_notes?`<h2>Note</h2><div class="pdf-terms">${S.contract_notes}</div>`:''}
-    ${S.contract_terms_rental?`<h2>Termini e Condizioni</h2><div class="pdf-terms">${S.contract_terms_rental}</div>`:''}
-    <div class="pdf-signs">
-      <div class="pdf-sign"><strong>Firma Cliente</strong><br><br><br>___________________________<br>${c.cognome||''} ${c.nome||''}</div>
-      <div class="pdf-sign"><strong>Firma Azienda</strong><br><br><br>___________________________<br>${S.company_name||''}</div>
+  const kmInfo=n.km_tipo==='illimitati'?'Illimitati':n.km_tipo==='giornalieri'?`${fN(n.km_inclusi)} km/giorno`:`${fN(n.km_inclusi)} km totali`;
+  const giorni=calcolaGiorni(n.data_inizio,n.data_fine);
+  const isGiornaliero=n.modalita_prezzo==='giornaliero';
+  const prezzoGiorno=isGiornaliero?(n.prezzo_giornaliero||0):(giorni>0?Math.round(n.prezzo/giorni*100)/100:0);
+  const totale=n.prezzo||0;
+
+  // Dati cliente formattati
+  const isAz=c.tipo_anagrafica==='azienda';
+  const clienteNome=nomeAnagrafica(c);
+  const clienteCF=isAz?'P.IVA: '+(c.partita_iva||'—'):'C.F.: '+(c.codice_fiscale||'—');
+  const clienteAddr=[c.indirizzo,c.luogo_nascita].filter(Boolean).join(', ')||'—';
+
+  openPdf(`
+  <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:12px;max-width:700px;margin:0 auto">
+
+    ${pdfHeader()}
+
+    <!-- Titolo documento + numero -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#2563eb">Contratto di Noleggio</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">N° ${num} &nbsp;·&nbsp; Data: ${today}</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#64748b">
+        <div>Data inizio: <strong>${fD(n.data_inizio)}</strong></div>
+        <div>Data fine: <strong>${fD(n.data_fine)}</strong></div>
+        <div>Durata: <strong>${giorni} giorn${giorni===1?'o':'i'}</strong></div>
+      </div>
     </div>
-    <div class="pdf-footer">${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – '+today}</div>`);
+
+    <!-- Parti: mittente + destinatario -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Locatore</div>
+        <div style="font-weight:700;font-size:13px">${S.company_name||'D&D DedCar'}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${[S.company_address,S.company_piva?'P.IVA: '+S.company_piva:'',S.company_phone?'Tel: '+S.company_phone:'',S.company_email||''].filter(Boolean).join('<br>')}
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Conducente / Locatario</div>
+        <div style="font-weight:700;font-size:13px">${clienteNome}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${clienteCF}<br>
+          ${c.telefono?'Tel: '+c.telefono:''}${c.email?'<br>'+c.email:''}<br>
+          ${c.data_nascita?'Nato il '+fD(c.data_nascita)+(c.luogo_nascita?' a '+c.luogo_nascita:''):''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Veicolo -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Veicolo</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#0f172a;color:#fff">
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Marca / Modello</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Targa</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Anno</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">KM consegna</th>
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Carburante</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc">
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-weight:600">${vx.marca||'—'} ${vx.modello||''}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-family:monospace">${vx.targa||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${vx.anno||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${fN(n.km_inizio||vx.km)} km</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${carbLabels[n.carburante_inizio]||'—'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Tabella importi tipo fattura -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Dettaglio importo</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#0f172a;color:#fff">
+            <th style="padding:8px 10px;text-align:left;font-weight:600">Descrizione</th>
+            <th style="padding:8px 10px;text-align:center;font-weight:600">Giorni</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:600">Prezzo/giorno</th>
+            <th style="padding:8px 10px;text-align:right;font-weight:600">Totale</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc">
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">
+              Noleggio ${vx.marca||''} ${vx.modello||''} (${vx.targa||'—'})<br>
+              <span style="font-size:10px;color:#64748b">${fD(n.data_inizio)} → ${fD(n.data_fine)} &nbsp;·&nbsp; KM: ${kmInfo}</span>
+            </td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:center">${giorni}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right">€ ${fN(prezzoGiorno)}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(totale)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#0f172a;color:#fff">
+            <td colspan="3" style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE</td>
+            <td style="padding:10px;text-align:right;font-weight:800;font-size:15px">€ ${fN(totale)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      ${S.iban?`<div style="margin-top:8px;font-size:11px;color:#475569;text-align:right">Pagamento tramite bonifico: <strong>${S.iban}</strong></div>`:''}
+    </div>
+
+    ${S.contract_header?`<div style="background:#f0f9ff;border-left:3px solid #2563eb;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#334155;font-style:italic">${S.contract_header}</div>`:''}
+    ${S.contract_notes?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Note</div><div style="font-size:11px;color:#334155;white-space:pre-wrap;line-height:1.6">${S.contract_notes}</div></div>`:''}
+    ${S.contract_terms_rental?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e2e8f0">Termini e Condizioni</div><div style="font-size:10px;color:#475569;white-space:pre-wrap;line-height:1.65">${S.contract_terms_rental}</div></div>`:''}
+
+    <!-- Firme -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma Locatario</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${clienteNome}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma per ${S.company_name||'D&D DedCar'}</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – Tel: +39 327 599 5090 – info@dedcar.it'}
+    </div>
+
+  </div>`);
 }
 
 function genPdfDdt(id){
@@ -2853,52 +3925,92 @@ function genPdfDdt(id){
   const vx=DATA.veicoli.find(x=>x.id===d.vehicle_id)||{};
   const S=SETTINGS,today=new Date().toLocaleDateString('it-IT'),isSale=d.tipo==='vendita';
   const danniAttivi=DATA.danni.filter(x=>x.vehicle_id===d.vehicle_id&&x.stato==='attivo');
-  const carbLabels={'pieno':'Pieno ⛽','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'1/4','riserva':'Riserva ⚠'};
+  const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'1/4','riserva':'Riserva'};
   const dataConsegnaStr=d.data_consegna?`${fD(d.data_consegna)}${d.ora_consegna?' alle '+d.ora_consegna:''}`:fD(d.data);
-  openPdf(`${pdfHeader()}<h1 style="font-size:15px;font-weight:700">DOCUMENTO DI TRASPORTO</h1>
-    <div class="pdf-num">N° ${d.numero||id.slice(-6).toUpperCase()}</div>
-    <div class="pdf-num">Data documento: ${fD(d.data)}</div>
-    <div style="margin-top:5px;font-weight:700;font-size:12px;text-transform:uppercase;color:${isSale?'#7c3aed':'#2563eb'}">${isSale?'DDT VENDITA':'DDT NOLEGGIO'}</div></div></div>
-    <h2>Mittente</h2>
-    <table class="pdf-tbl">
-      <tr><td>Ragione Sociale</td><td>${S.company_name||'—'}</td></tr>
-      <tr><td>Indirizzo</td><td>${S.company_address||'—'}</td></tr>
-      <tr><td>P.IVA</td><td>${S.company_piva||'—'}</td></tr>
-      ${S.company_phone?`<tr><td>Telefono</td><td>${S.company_phone}</td></tr>`:''}
-    </table>
-    <h2>Destinatario</h2>
-    <table class="pdf-tbl">
-      <tr><td>Nominativo</td><td>${nomeAnagrafica(c)}</td></tr>
-      <tr><td>C.F.</td><td style="font-family:monospace">${c.codice_fiscale||'—'}</td></tr>
-      <tr><td>Telefono</td><td>${c.telefono||'—'}</td></tr>
-    </table>
-    <h2>Beni trasportati</h2>
-    <table class="pdf-tbl">
-      <thead><tr><th>Descrizione</th><th>Veicolo</th><th>Targa</th><th>Anno</th><th>Km</th></tr></thead>
-      <tbody><tr>
-        <td>${isSale?'Veicolo in vendita':'Veicolo in noleggio'}</td>
-        <td>${vx.marca||'—'} ${vx.modello||''}</td>
-        <td style="font-family:monospace">${vx.targa||'—'}</td>
-        <td>${vx.anno||'—'}</td>
-        <td>${fN(d.km_consegna||vx.km)} km</td>
-      </tr></tbody>
-    </table>
-    ${danniAttivi.length?`<h2>Danni preesistenti (attivi)</h2><table class="pdf-tbl"><thead><tr><th>Data</th><th>Descrizione</th></tr></thead><tbody>${danniAttivi.map(x=>`<tr><td>${fD(x.data)}</td><td>${x.descrizione||'—'}</td></tr>`).join('')}</tbody></table>`:''}
-    <h2>Consegna</h2>
-    <table class="pdf-tbl">
-      <tr><td>Data e ora consegna</td><td><strong>${dataConsegnaStr}</strong></td></tr>
-      <tr><td>Livello carburante</td><td><strong>${carbLabels[d.carburante_consegna]||d.carburante_consegna||'—'}</strong></td></tr>
-      <tr><td>Causale</td><td>${d.causale||'—'}</td></tr>
-      <tr><td>Luogo consegna</td><td>${d.luogo_consegna||'—'}</td></tr>
-      <tr><td>Vettore</td><td>${d.vettore||'Mittente'}</td></tr>
-      ${d.importo?`<tr><td>Importo</td><td><strong>€ ${fN(d.importo)}</strong></td></tr>`:''}
-    </table>
-    ${isSale&&S.contract_terms_sales?`<h2>Condizioni di Vendita</h2><div class="pdf-terms">${S.contract_terms_sales}</div>`:''}
-    <div class="pdf-signs">
-      <div class="pdf-sign"><strong>Firma per ricevuta</strong><br><br><br><br>___________________________<br>${c.cognome||''} ${c.nome||''}</div>
-      <div class="pdf-sign"><strong>Firma mittente</strong><br><br><br><br>___________________________<br>${S.company_name||''}</div>
+  const colore=isSale?'#7c3aed':'#2563eb';
+
+  openPdf(`
+  <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:12px;max-width:700px;margin:0 auto">
+
+    ${pdfHeader()}
+
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:${colore}">Documento di Trasporto</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">N° ${d.numero||id.slice(-6).toUpperCase()} &nbsp;·&nbsp; Data: ${fD(d.data)}</div>
+        <div style="margin-top:6px;display:inline-block;background:${isSale?'#f3e8ff':'#eff6ff'};color:${colore};padding:3px 10px;border-radius:20px;font-size:11px;font-weight:700">${isSale?'DDT VENDITA':'DDT NOLEGGIO'}</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#64748b">
+        <div>Consegna: <strong>${dataConsegnaStr}</strong></div>
+        ${d.ora_consegna?'':''}
+      </div>
     </div>
-    <div class="pdf-footer">${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – '+today}</div>`);
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Mittente</div>
+        <div style="font-weight:700;font-size:13px">${S.company_name||'D&D DedCar'}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${[S.company_address,S.company_piva?'P.IVA: '+S.company_piva:'',S.company_phone?'Tel: '+S.company_phone:''].filter(Boolean).join('<br>')}
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Destinatario</div>
+        <div style="font-weight:700;font-size:13px">${nomeAnagrafica(c)}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${c.codice_fiscale?'C.F.: '+c.codice_fiscale:''}${c.partita_iva?'P.IVA: '+c.partita_iva:''}<br>
+          ${c.telefono?'Tel: '+c.telefono:''}
+        </div>
+      </div>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Beni trasportati</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead><tr style="background:#0f172a;color:#fff">
+          <th style="padding:8px 10px;text-align:left">Descrizione</th>
+          <th style="padding:8px 10px;text-align:left">Veicolo</th>
+          <th style="padding:8px 10px;text-align:left">Targa</th>
+          <th style="padding:8px 10px;text-align:left">Anno</th>
+          <th style="padding:8px 10px;text-align:left">Km</th>
+        </tr></thead>
+        <tbody><tr style="background:#f8fafc">
+          <td style="padding:9px 10px;border:1px solid #e2e8f0">${isSale?'Veicolo in vendita':'Veicolo in noleggio'}</td>
+          <td style="padding:9px 10px;border:1px solid #e2e8f0;font-weight:600">${vx.marca||'—'} ${vx.modello||''}</td>
+          <td style="padding:9px 10px;border:1px solid #e2e8f0;font-family:monospace">${vx.targa||'—'}</td>
+          <td style="padding:9px 10px;border:1px solid #e2e8f0">${vx.anno||'—'}</td>
+          <td style="padding:9px 10px;border:1px solid #e2e8f0">${fN(d.km_consegna||vx.km)} km</td>
+        </tr></tbody>
+      </table>
+    </div>
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Consegna</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <tr><td style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;width:35%;font-weight:600">Data e ora</td><td style="padding:6px 10px;border:1px solid #e2e8f0"><strong>${dataConsegnaStr}</strong></td></tr>
+        <tr><td style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600">Carburante</td><td style="padding:6px 10px;border:1px solid #e2e8f0"><strong>${carbLabels[d.carburante_consegna]||d.carburante_consegna||'—'}</strong></td></tr>
+        <tr><td style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600">Causale</td><td style="padding:6px 10px;border:1px solid #e2e8f0">${d.causale||'—'}</td></tr>
+        <tr><td style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600">Luogo</td><td style="padding:6px 10px;border:1px solid #e2e8f0">${d.luogo_consegna||'—'}</td></tr>
+        ${d.importo?`<tr><td style="padding:6px 10px;border:1px solid #e2e8f0;background:#f8fafc;font-weight:600">Importo</td><td style="padding:6px 10px;border:1px solid #e2e8f0;font-weight:700">€ ${fN(d.importo)}</td></tr>`:''}
+      </table>
+    </div>
+
+    ${danniAttivi.length?`<div style="margin-bottom:20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px">
+      <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:8px">⚠ Danni preesistenti sul veicolo</div>
+      ${danniAttivi.map(x=>`<div style="font-size:11px;color:#7f1d1d;padding:3px 0">${fD(x.data)} — ${x.descrizione||'—'}</div>`).join('')}
+    </div>`:''}
+
+    ${isSale&&S.contract_terms_sales?`<div style="margin-bottom:16px"><div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Condizioni di Vendita</div><div style="font-size:10px;color:#475569;white-space:pre-wrap;line-height:1.6">${S.contract_terms_sales}</div></div>`:''}
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma per ricevuta</div><div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${nomeAnagrafica(c)}</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma mittente</div><div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div></div>
+    </div>
+
+    <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408'}
+    </div>
+  </div>`);
 }
 
 /* ══════════════════════ DANNI VEICOLO ══════════════════════ */
@@ -2957,7 +4069,7 @@ function bDanno(body,d){
     <div class="fsec"><div class="fsec-title">Veicolo e data</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Veicolo *</label><select id="f-d-vid"><option value="">Seleziona…</option>${vl.map(v=>`<option value="${v.id}"${d?.vehicle_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Data *</label><input id="f-d-data" type="date" value="${d?.data||today}"></div>
+        <div class="ios-f"><label>Data *</label><input id="f-d-data" type="date" value="${d?.data||today}" style="text-align:left"></div>
         <div class="ios-f"><label>Cliente</label><select id="f-d-cid"><option value="">Nessuno</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
       </div>
     </div>
@@ -3025,34 +4137,202 @@ function genPdfContestazione(noleggioId){
   const S=SETTINGS;
   const today=new Date().toLocaleDateString('it-IT');
   const danniVeicolo=DATA.danni.filter(d=>d.vehicle_id===n.vehicle_id&&d.stato==='attivo');
-  const logoHtml=S.logo_base64
-    ?`<img src="${S.logo_base64}" style="height:55px;object-fit:contain;float:right" alt="${S.company_name||'D&D DedCar'}">`
-    :`<div style="width:44px;height:44px;background:#2563eb;border-radius:9px;display:inline-flex;align-items:center;justify-content:center;float:right"><span style="color:#fff;font-size:18px;font-weight:800;font-family:Arial,sans-serif">D</span></div>`;
+
   openPdf(`
-    <div class="pdf-hdr">
-      <div><div class="pdf-company">${S.company_name||'D&D DedCar'}</div>
-        <div class="pdf-company-info">${[S.company_address,S.company_phone?'Tel: '+S.company_phone:'',S.company_email].filter(Boolean).join('<br>')}</div>
+  <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:12px;max-width:700px;margin:0 auto">
+
+    ${pdfHeader()}
+
+    <div style="margin-bottom:20px">
+      <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#dc2626">Verbale di Rientro Veicolo</div>
+      <div style="font-size:11px;color:#64748b;margin-top:3px">Data: ${today}</div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Cliente</div>
+        <div style="font-weight:700;font-size:13px">${nomeAnagrafica(c)}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${c.codice_fiscale?'C.F.: '+c.codice_fiscale:''}<br>${c.telefono?'Tel: '+c.telefono:''}
+        </div>
       </div>
-      <div style="text-align:right">${logoHtml}<div class="pdf-doc-type"><h1>VERBALE DI RIENTRO VEICOLO</h1><div class="pdf-num">Data: ${today}</div></div></div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Veicolo</div>
+        <div style="font-weight:700;font-size:13px">${vx.marca||''} ${vx.modello||''}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          Targa: <strong style="font-family:monospace">${vx.targa||'—'}</strong><br>
+          KM partenza: ${fN(n.km_inizio)} &nbsp;|&nbsp; KM rientro: ${fN(n.km_fine)}<br>
+          <strong>KM percorsi: ${fN((n.km_fine||0)-(n.km_inizio||0))} km</strong>
+        </div>
+      </div>
     </div>
-    <h2>Cliente</h2>
-    <table class="pdf-tbl"><tr><td>Nominativo</td><td>${nomeAnagrafica(c)}</td></tr><tr><td>C.F.</td><td style="font-family:monospace">${c.codice_fiscale||'—'}</td></tr><tr><td>Telefono</td><td>${c.telefono||'—'}</td></tr></table>
-    <h2>Veicolo</h2>
-    <table class="pdf-tbl"><tr><td>Veicolo</td><td>${vx.marca||''} ${vx.modello||''}</td></tr><tr><td>Targa</td><td>${vx.targa||'—'}</td></tr><tr><td>KM alla partenza</td><td>${fN(n.km_inizio)} km</td></tr><tr><td>KM al rientro</td><td>${fN(n.km_fine)} km</td></tr><tr><td>KM percorsi</td><td><strong>${fN((n.km_fine||0)-(n.km_inizio||0))} km</strong></td></tr></table>
-    <h2>Danni riscontrati al rientro</h2>
-    ${n.danni_rientro?`<div class="pdf-terms">${n.danni_rientro}</div>`:'<p style="color:#666;font-style:italic">Nessun danno segnalato in questa sessione</p>'}
-    ${danniVeicolo.length?`<h2>Danni preesistenti attivi</h2><table class="pdf-tbl"><thead><tr><th>Data</th><th>Descrizione</th><th>Stato</th></tr></thead><tbody>${danniVeicolo.map(d=>`<tr><td>${fD(d.data)}</td><td>${d.descrizione||'—'}</td><td>${d.stato}</td></tr>`).join('')}</tbody></table>`:''}
-    ${n.extra_costi>0?`<h2>Addebiti extra</h2><table class="pdf-tbl"><tr><td>Importo extra</td><td><strong>€ ${fN(n.extra_costi)}</strong></td></tr></table>`:''}
-    <div style="margin:24px 0;padding:16px;background:#fef3cd;border:1px solid #ffc107;border-radius:4px;font-size:12px;color:#555">
-      <strong>Il cliente prende atto dei danni riscontrati al rientro del veicolo.</strong><br>
-      Il consuntivo economico relativo ai danni verrà comunicato successivamente, a seguito di valutazione tecnica.
+
+    <div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Danni riscontrati al rientro</div>
+      ${n.danni_rientro
+        ?`<div style="background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px;font-size:11px;color:#7f1d1d;white-space:pre-wrap;line-height:1.6">${n.danni_rientro}</div>`
+        :`<div style="color:#64748b;font-style:italic;font-size:11px;padding:10px 0">Nessun danno segnalato in questa sessione</div>`}
     </div>
-    <div class="pdf-signs">
-      <div class="pdf-sign"><strong>Firma Cliente — Presa visione</strong><br><br><br><br>___________________________<br>${c.cognome||''} ${c.nome||''}</div>
-      <div class="pdf-sign"><strong>Firma Operatore</strong><br><br><br><br>___________________________<br>${S.company_name||''}</div>
+
+    ${danniVeicolo.length?`<div style="margin-bottom:16px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Danni preesistenti attivi</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead><tr style="background:#0f172a;color:#fff"><th style="padding:7px 10px;text-align:left">Data</th><th style="padding:7px 10px;text-align:left">Descrizione</th></tr></thead>
+        <tbody>${danniVeicolo.map(d=>`<tr style="background:#f8fafc"><td style="padding:7px 10px;border:1px solid #e2e8f0">${fD(d.data)}</td><td style="padding:7px 10px;border:1px solid #e2e8f0">${d.descrizione||'—'}</td></tr>`).join('')}</tbody>
+      </table>
+    </div>`:''}
+
+    ${n.extra_costi>0?`<div style="margin-bottom:16px;text-align:right"><div style="display:inline-block;background:#0f172a;color:#fff;padding:10px 20px;border-radius:8px;font-size:14px;font-weight:700">Addebiti extra: € ${fN(n.extra_costi)}</div></div>`:''}
+
+    <div style="margin:20px 0;padding:14px;background:#fef9c3;border-left:4px solid #ca8a04;border-radius:0 8px 8px 0;font-size:11px;color:#713f12">
+      <strong>Il cliente dichiara di aver preso visione dei danni riscontrati al rientro del veicolo.</strong><br>
+      Il consuntivo economico verrà comunicato successivamente, a seguito di valutazione tecnica.
     </div>
-    <div class="pdf-footer">${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – '+today}</div>
-  `);
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma Cliente — Presa visione</div><div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${nomeAnagrafica(c)}</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma Operatore</div><div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div></div>
+    </div>
+
+    <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408'}
+    </div>
+  </div>`);
+}
+
+/* ══════════════════════ PDF — CONTRATTO VENDITA ══════════════════════ */
+function genPdfVendita(id){
+  const s=DATA.sales.find(x=>x.id===id);if(!s){toast('Vendita non trovata','err');return;}
+  const c=DATA.clienti.find(x=>x.id===s.customer_id)||{};
+  const vx=DATA.veicoli.find(x=>x.id===s.vehicle_id)||{};
+  const S=SETTINGS;
+  const today=new Date().toLocaleDateString('it-IT');
+  const num=id.slice(-6).toUpperCase();
+  const isAz=c.tipo_anagrafica==='azienda';
+  const clienteNome=nomeAnagrafica(c);
+  const clienteCF=isAz?'P.IVA: '+(c.partita_iva||'—'):'C.F.: '+(c.codice_fiscale||'—');
+  const costi=DATA.expenses.filter(e=>e.vehicle_id===s.vehicle_id).reduce((t,e)=>t+(parseFloat(e.costo)||0),0);
+  const ricNoleggi=DATA.noleggi.filter(n=>n.vehicle_id===s.vehicle_id&&n.stato==='completato').reduce((t,n)=>t+(parseFloat(n.prezzo)||0),0);
+  const profitto=(parseFloat(s.prezzo_vendita)||0)+ricNoleggi-costi;
+  const prezzoLettera=s.prezzo_vendita?`€ ${fN(s.prezzo_vendita)}`:'';
+
+  openPdf(`
+  <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:12px;max-width:700px;margin:0 auto">
+
+    ${pdfHeader()}
+
+    <!-- Titolo + numero -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+      <div>
+        <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#7c3aed">Contratto di Vendita</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">N° ${num} &nbsp;·&nbsp; Data: ${fD(s.data)||today}</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#64748b">
+        <div>Data contratto: <strong>${fD(s.data)||today}</strong></div>
+      </div>
+    </div>
+
+    <!-- Parti: venditore + acquirente -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Venditore</div>
+        <div style="font-weight:700;font-size:13px">${S.company_name||'D&D DedCar'}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${[S.company_address,S.company_piva?'P.IVA: '+S.company_piva:'',S.company_phone?'Tel: '+S.company_phone:'',S.company_email||''].filter(Boolean).join('<br>')}
+        </div>
+      </div>
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Acquirente</div>
+        <div style="font-weight:700;font-size:13px">${clienteNome}</div>
+        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+          ${clienteCF}<br>
+          ${c.telefono?'Tel: '+c.telefono:''}${c.email?'<br>'+c.email:''}<br>
+          ${c.indirizzo||''}
+        </div>
+      </div>
+    </div>
+
+    <!-- Veicolo -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Veicolo oggetto di vendita</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#0f172a;color:#fff">
+            <th style="padding:8px 10px;text-align:left">Marca / Modello</th>
+            <th style="padding:8px 10px;text-align:left">Targa</th>
+            <th style="padding:8px 10px;text-align:left">Anno</th>
+            <th style="padding:8px 10px;text-align:left">KM</th>
+            <th style="padding:8px 10px;text-align:left">Carburante</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc">
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-weight:600">${vx.marca||'—'} ${vx.modello||''}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-family:monospace">${vx.targa||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${vx.anno||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${fN(vx.km)} km</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;text-transform:capitalize">${vx.carburante||'—'}</td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+
+    <!-- Prezzo -->
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Prezzo concordato</div>
+      <table style="width:100%;border-collapse:collapse;font-size:12px">
+        <thead>
+          <tr style="background:#0f172a;color:#fff">
+            <th style="padding:8px 10px;text-align:left">Descrizione</th>
+            <th style="padding:8px 10px;text-align:right">Importo</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr style="background:#f8fafc">
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">
+              Vendita ${vx.marca||''} ${vx.modello||''} (${vx.targa||'—'})
+            </td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(s.prezzo_vendita)}</td>
+          </tr>
+        </tbody>
+        <tfoot>
+          <tr style="background:#7c3aed;color:#fff">
+            <td style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE</td>
+            <td style="padding:10px;text-align:right;font-weight:800;font-size:15px">€ ${fN(s.prezzo_vendita)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      ${S.iban?`<div style="margin-top:8px;font-size:11px;color:#475569;text-align:right">Pagamento tramite bonifico: <strong>${S.iban}</strong></div>`:''}
+    </div>
+
+    ${S.contract_header?`<div style="background:#f5f3ff;border-left:3px solid #7c3aed;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#334155;font-style:italic">${S.contract_header}</div>`:''}
+    ${S.contract_notes?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Note</div><div style="font-size:11px;color:#334155;white-space:pre-wrap;line-height:1.6">${S.contract_notes}</div></div>`:''}
+    ${S.contract_terms_sales?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e2e8f0">Condizioni di Vendita</div><div style="font-size:10px;color:#475569;white-space:pre-wrap;line-height:1.65">${S.contract_terms_sales}</div></div>`:''}
+
+    <!-- Dichiarazione -->
+    <div style="margin:20px 0;padding:14px;background:#f5f3ff;border-left:4px solid #7c3aed;border-radius:0 8px 8px 0;font-size:11px;color:#3b0764">
+      Il venditore cede e l'acquirente acquista il veicolo sopra descritto ai prezzi e condizioni indicati nel presente contratto.
+      Il veicolo viene ceduto nello stato in cui si trova, come visionato dall'acquirente.
+    </div>
+
+    <!-- Firme -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma Acquirente</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${clienteNome}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma per ${S.company_name||'D&D DedCar'}</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div>
+      </div>
+    </div>
+
+    <!-- Footer -->
+    <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – Tel: +39 327 599 5090 – info@dedcar.it'}
+    </div>
+
+  </div>`);
 }
 
 /* ══════════════════════ AUTH — SHA-256 + LOGIN ══════════════════════ */
@@ -3062,60 +4342,66 @@ const DEFAULT_ADMIN = { username:'admin', password_hash:'8c6976e5b5410415bde908b
 
 /* SHA-256 — funziona su file://, HTTP e HTTPS (fallback puro JS se crypto.subtle non disponibile) */
 async function sha256(msg){
-  // Prova prima crypto.subtle (più veloce, richiede HTTPS o localhost)
   if(typeof crypto!=='undefined'&&crypto.subtle){
     try{
       const buf=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(msg));
       return Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2,'0')).join('');
     }catch(e){}
   }
-  // Fallback puro JS — funziona sempre (file://, HTTP, qualsiasi contesto)
   return sha256Pure(msg);
 }
 
-function sha256Pure(ascii){
-  function rightRotate(value,amount){return(value>>>amount)|(value<<(32-amount));}
-  const mathPow=Math.pow;
-  const maxWord=mathPow(2,32);
-  let result='';
-  const words=[];
-  const asciiBitLength=ascii.length*8;
-  let hash=[];
-  let k=[];
-  let primeCounter=0;
-  const isComposite={};
-  for(let candidate=2;primeCounter<64;candidate++){
-    if(!isComposite[candidate]){
-      for(let i=candidate*candidate;i<313;i+=candidate)isComposite[i]=true;
-      hash[primeCounter]=mathPow(candidate,.5)*maxWord|0;
-      k[primeCounter++]=mathPow(candidate,1/3)*maxWord|0;
+function sha256Pure(str){
+  // Converte stringa in array di byte UTF-8
+  const utf8=[];
+  for(let i=0;i<str.length;i++){
+    let c=str.charCodeAt(i);
+    if(c<128){utf8.push(c);}
+    else if(c<2048){utf8.push(192|(c>>6),128|(c&63));}
+    else{utf8.push(224|(c>>12),128|((c>>6)&63),128|(c&63));}
+  }
+  // Costanti SHA-256
+  const K=[0x428a2f98,0x71374491,0xb5c0fbcf,0xe9b5dba5,0x3956c25b,0x59f111f1,0x923f82a4,0xab1c5ed5,
+           0xd807aa98,0x12835b01,0x243185be,0x550c7dc3,0x72be5d74,0x80deb1fe,0x9bdc06a7,0xc19bf174,
+           0xe49b69c1,0xefbe4786,0x0fc19dc6,0x240ca1cc,0x2de92c6f,0x4a7484aa,0x5cb0a9dc,0x76f988da,
+           0x983e5152,0xa831c66d,0xb00327c8,0xbf597fc7,0xc6e00bf3,0xd5a79147,0x06ca6351,0x14292967,
+           0x27b70a85,0x2e1b2138,0x4d2c6dfc,0x53380d13,0x650a7354,0x766a0abb,0x81c2c92e,0x92722c85,
+           0xa2bfe8a1,0xa81a664b,0xc24b8b70,0xc76c51a3,0xd192e819,0xd6990624,0xf40e3585,0x106aa070,
+           0x19a4c116,0x1e376c08,0x2748774c,0x34b0bcb5,0x391c0cb3,0x4ed8aa4a,0x5b9cca4f,0x682e6ff3,
+           0x748f82ee,0x78a5636f,0x84c87814,0x8cc70208,0x90befffa,0xa4506ceb,0xbef9a3f7,0xc67178f2];
+  let h0=0x6a09e667,h1=0xbb67ae85,h2=0x3c6ef372,h3=0xa54ff53a;
+  let h4=0x510e527f,h5=0x9b05688c,h6=0x1f83d9ab,h7=0x5be0cd19;
+  // Pre-processing
+  const len=utf8.length;
+  utf8.push(0x80);
+  while(utf8.length%64!==56)utf8.push(0);
+  const bitLen=len*8;
+  utf8.push(0,0,0,0,(bitLen>>>24)&0xff,(bitLen>>>16)&0xff,(bitLen>>>8)&0xff,bitLen&0xff);
+  // Process blocks
+  const r=(v,n)=>(v>>>n)|(v<<(32-n));
+  for(let i=0;i<utf8.length;i+=64){
+    const w=new Array(64);
+    for(let j=0;j<16;j++)w[j]=(utf8[i+j*4]<<24)|(utf8[i+j*4+1]<<16)|(utf8[i+j*4+2]<<8)|utf8[i+j*4+3];
+    for(let j=16;j<64;j++){
+      const s0=r(w[j-15],7)^r(w[j-15],18)^(w[j-15]>>>3);
+      const s1=r(w[j-2],17)^r(w[j-2],19)^(w[j-2]>>>10);
+      w[j]=(w[j-16]+s0+w[j-7]+s1)|0;
     }
-  }
-  ascii+='\x80';
-  while(ascii.length%64-56)ascii+='\x00';
-  for(let i=0;i<ascii.length;i++){
-    const j=ascii.charCodeAt(i);
-    if(j>>8)return'';
-    words[i>>2]|=j<<((3-i)%4*8);
-  }
-  words[words.length]=((asciiBitLength/maxWord)|0);
-  words[words.length]=(asciiBitLength|0);
-  for(let j=0;j<words.length;){
-    const w=words.slice(j,j+=16);
-    const oldHash=[...hash];
-    for(let i=0;i<64;i++){
-      const w15=w[i-15],w2=w[i-2];
-      const a=hash[0],e=hash[4];
-      const temp1=hash[7]+(rightRotate(e,6)^rightRotate(e,11)^rightRotate(e,25))+((e&hash[5])^(~e&hash[6]))+k[i]+(w[i]=i<16?w[i]:(w[i-16]+(rightRotate(w15,7)^rightRotate(w15,18)^(w15>>>3))+(w[i-7])+(rightRotate(w2,17)^rightRotate(w2,19)^(w2>>>10)))|0);
-      const temp2=(rightRotate(a,2)^rightRotate(a,13)^rightRotate(a,22))+((a&hash[1])^(a&hash[2])^(hash[1]&hash[2]));
-      hash=[(temp1+temp2)|0,...hash];
-      hash[4]=(hash[4]+temp1)|0;
-      hash.length=8;
+    let a=h0,b=h1,c=h2,d=h3,e=h4,f=h5,g=h6,h=h7;
+    for(let j=0;j<64;j++){
+      const S1=r(e,6)^r(e,11)^r(e,25);
+      const ch=(e&f)^(~e&g);
+      const temp1=(h+S1+ch+K[j]+w[j])|0;
+      const S0=r(a,2)^r(a,13)^r(a,22);
+      const maj=(a&b)^(a&c)^(b&c);
+      const temp2=(S0+maj)|0;
+      h=g;g=f;f=e;e=(d+temp1)|0;d=c;c=b;b=a;a=(temp1+temp2)|0;
     }
-    hash=hash.map((x,i)=>(x+oldHash[i])|0);
+    h0=(h0+a)|0;h1=(h1+b)|0;h2=(h2+c)|0;h3=(h3+d)|0;
+    h4=(h4+e)|0;h5=(h5+f)|0;h6=(h6+g)|0;h7=(h7+h)|0;
   }
-  hash.forEach(function(h){result+=(h+maxWord).toString(16).slice(1);});
-  return result;
+  const toHex=v=>('00000000'+(v>>>0).toString(16)).slice(-8);
+  return toHex(h0)+toHex(h1)+toHex(h2)+toHex(h3)+toHex(h4)+toHex(h5)+toHex(h6)+toHex(h7);
 }
 
 function getSavedSession(){
@@ -3125,30 +4411,59 @@ function saveSession(user){ localStorage.setItem('as_session',JSON.stringify(use
 function clearSession(){ localStorage.removeItem('as_session'); }
 
 async function doLogin(){
-  const username=(document.getElementById('login-user')?.value||'').trim().toLowerCase();
-  const password=document.getElementById('login-pass')?.value||'';
-  const errEl=document.getElementById('login-error');
+  const un=(document.getElementById('login-user')?.value||'').trim().toLowerCase();
+  const pw=document.getElementById('login-pass')?.value||'';
   const btn=document.getElementById('login-btn');
-  if(!username||!password){showLoginError('Inserisci username e password');return;}
-  btn.disabled=true;btn.textContent='Accesso…';
-  const hash=await sha256(password);
-  // Check built-in admin
-  let user=null;
-  if(username===DEFAULT_ADMIN.username&&hash===DEFAULT_ADMIN.password_hash){
-    user={id:'admin-builtin',username:'admin',ruolo:'admin'};
-  } else {
-    // Check users from DB
-    const found=DATA.users.find(u=>u.username?.toLowerCase()===username&&u.password_hash===hash);
-    if(found)user={id:found.id,username:found.username,ruolo:found.ruolo};
+  const errEl=document.getElementById('login-error');
+
+  // Reset errore
+  if(errEl){errEl.style.display='none';errEl.textContent='';}
+
+  if(!un||!pw){
+    if(errEl){errEl.textContent='Inserisci username e password';errEl.style.display='block';}
+    return;
   }
-  btn.disabled=false;btn.textContent='Accedi';
-  if(!user){showLoginError('Username o password errati');return;}
+
+  // Feedback visivo immediato
+  if(btn){btn.textContent='⏳ Verifica…';btn.style.opacity='0.7';}
+
+  try{
+    const hash=await sha256(pw);
+
+    // Controlla admin built-in
+    if(un===DEFAULT_ADMIN.username&&hash===DEFAULT_ADMIN.password_hash){
+      _loginSuccess({id:'admin-builtin',username:'admin',ruolo:'admin'});
+      return;
+    }
+
+    // Controlla utenti dal DB
+    const found=(DATA.users||[]).find(u=>
+      u.username?.toLowerCase()===un && u.password_hash===hash
+    );
+    if(found){
+      _loginSuccess({id:found.id,username:found.username,ruolo:found.ruolo});
+      return;
+    }
+
+    // Credenziali errate
+    if(errEl){errEl.textContent='❌ Username o password errati';errEl.style.display='block';}
+
+  }catch(err){
+    if(errEl){errEl.textContent='Errore tecnico: '+err.message;errEl.style.display='block';}
+  }finally{
+    if(btn){btn.textContent='Accedi';btn.style.opacity='1';}
+  }
+}
+
+async function _loginSuccess(user){
   CURRENT_USER=user;
-  ROLE=user.ruolo;
+  ROLE=user.ruolo||'admin';
   saveSession(user);
   document.getElementById('login-screen').classList.add('hidden');
   updateUserNav();
-  toast(`Benvenuto, ${user.username}! 👋`,'info');
+  document.getElementById('loading-screen').classList.remove('hidden');
+  try{await syncDown();}catch(e){renderAll();}
+  document.getElementById('loading-screen').classList.add('hidden');
 }
 
 function showLoginError(msg){
@@ -3161,14 +4476,6 @@ function doLogout(){
   document.getElementById('login-screen').classList.remove('hidden');
   document.getElementById('login-pass').value='';
   document.getElementById('login-error').style.display='none';
-}
-
-function updateUserNav(){
-  const u=CURRENT_USER;if(!u)return;
-  const av=document.getElementById('user-avatar-nav');
-  const nm=document.getElementById('user-name-nav');
-  if(av)av.textContent=(u.username[0]||'?').toUpperCase();
-  if(nm)nm.textContent=u.username;
 }
 
 function requireAdmin(){
@@ -3415,7 +4722,7 @@ function bPayment(body,d){
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Importo (€) *</label><input id="f-pay-importo" type="number" step="0.01" min="0.01" placeholder="0.00"></div>
+        <div class="ios-f"><label>Importo (€) *</label><input id="f-pay-importo" type="number" inputmode="decimal" step="0.01" min="0.01" placeholder="0.00"></div>
         <div class="ios-f"><label>Categoria</label><select id="f-pay-cat">
           <option value="noleggio">Noleggio</option>
           <option value="vendita">Vendita</option>
@@ -3425,7 +4732,7 @@ function bPayment(body,d){
           <option value="tasse">Tasse/Bolli</option>
           <option value="altro">Altro</option>
         </select></div>
-        <div class="ios-f"><label>Data *</label><input id="f-pay-data" type="date" value="${today}"></div>
+        <div class="ios-f"><label>Data *</label><input id="f-pay-data" type="date" value="${today}" style="text-align:left"></div>
         <div class="ios-f ta" style="min-height:auto"><label>Descrizione</label><textarea id="f-pay-desc" placeholder="Nota opzionale…" style="min-height:50px"></textarea></div>
       </div>
     </div>
@@ -3524,8 +4831,8 @@ function bCompanyCost(body,d){
           <option value="fisso">Fisso (mensile)</option>
           <option value="variabile">Variabile</option>
         </select></div>
-        <div class="ios-f"><label>Importo (€) *</label><input id="f-cc-importo" type="number" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="ios-f"><label>Data *</label><input id="f-cc-data" type="date" value="${today}"></div>
+        <div class="ios-f"><label>Importo (€) *</label><input id="f-cc-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
+        <div class="ios-f"><label>Data *</label><input id="f-cc-data" type="date" value="${today}" style="text-align:left"></div>
         <div class="ios-f ta" style="min-height:auto"><label>Descrizione</label><textarea id="f-cc-desc" placeholder="Dettagli…" style="min-height:50px"></textarea></div>
       </div>
     </div>
@@ -3562,12 +4869,15 @@ document.addEventListener('visibilitychange',()=>{if(!document.hidden&&CURRENT_U
 setInterval(()=>{if(!document.hidden&&CURRENT_USER)syncDown();},30000);
 
 document.addEventListener('keydown',e=>{
-  if(e.key==='Enter'&&!document.getElementById('login-screen').classList.contains('hidden'))doLogin();
+  if(e.key==='Enter'&&!document.getElementById('login-screen').classList.contains('hidden')){doLogin();return;}
+  if(e.key==='Escape'&&document.getElementById('sidebar')?.classList.contains('open')){closeSidebar();}
 });
 
 async function init(){
-  // Init Lucide icons (non-blocking)
   if(typeof lucide !== 'undefined') try{ lucide.createIcons(); }catch(e){}
+
+  // Sidebar chiusa di default
+  closeSidebar();
 
   const session=getSavedSession();
   if(session){
@@ -3577,12 +4887,13 @@ async function init(){
     updateUserNav();
     document.getElementById('loading-screen').classList.remove('hidden');
     try{await syncDown();}
-    catch(e){setSS('err','Errore');toast('Errore di rete','err');renderAll();}
+    catch(e){setSS('err','Errore');toast('Errore di rete — dati locali in uso','info');renderAll();}
     document.getElementById('loading-screen').classList.add('hidden');
+    updateUserNav(); // Aggiorna dopo sync (settings potrebbero essere cambiati)
   } else {
     document.getElementById('login-screen').classList.remove('hidden');
     document.getElementById('loading-screen').classList.add('hidden');
-    syncDown().catch(()=>{});
+    try{await syncDown();}catch(e){}
   }
 }
 
