@@ -304,9 +304,6 @@ body{
   flex-shrink:0;
 }
 
-/* ── Offset per hamburger button ── */
-/* Space for hamburger button */
-.nav-bar{padding-left:58px;}
 /* ══════════════════════════════════════
    PAGES & NAV BAR
 ══════════════════════════════════════ */
@@ -316,16 +313,18 @@ body{
 .scroll-body{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;scroll-behavior:smooth;padding:0 16px 40px;pointer-events:auto;}
 .detail-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;padding:16px;pointer-events:auto;}
 
+/* Nav-bar: padding-left ampio per non essere coperto dall'hamburger fixed */
 .nav-bar{
   flex-shrink:0;
   background:var(--nav-bg);
   backdrop-filter:blur(20px) saturate(160%);
   -webkit-backdrop-filter:blur(20px) saturate(160%);
   border-bottom:1px solid var(--sep);
-  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px;
+  /* top: safe area + padding. left: 62px per l'hamburger (38px + 12px left + 12px gap) */
+  padding:calc(env(safe-area-inset-top) + 10px) 16px 10px 62px;
 }
 .nav-bar-top{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;min-height:36px}
-.nav-large-title{font-size:24px;font-weight:700;letter-spacing:-.4px;color:var(--label)}
+.nav-large-title{font-size:22px;font-weight:700;letter-spacing:-.3px;color:var(--label)}
 .nav-right{display:flex;align-items:center;gap:8px}
 
 /* ══════════════════════════════════════
@@ -807,7 +806,7 @@ body{
    MISC / UTILITY
 ══════════════════════════════════════ */
 .empty-state{text-align:center;padding:52px 20px;color:var(--label3)}
-.empty-state .ei{font-size:44px;margin-bottom:12px}
+.empty-state .ei{font-size:44px;margin-bottom:12px;display:flex;align-items:center;justify-content:center;color:var(--label3)}
 .empty-state h3{font-size:16px;color:var(--label2);font-weight:600;margin-bottom:4px}
 .empty-state p{font-size:13px;line-height:1.5}
 .amount-big{font-size:26px;font-weight:700;letter-spacing:-.5px;color:var(--green)}
@@ -975,11 +974,6 @@ a,button,select,input,textarea,label,
   margin:2px auto 0;
 }
 
-/* Nav title style */
-.nav-large-title{
-  font-size:22px;font-weight:700;letter-spacing:-.3px;
-  color:var(--label);
-}
 
 /* Improved empty state icon */
 .empty-state .ei svg{
@@ -1067,7 +1061,17 @@ input[type="search"]::-webkit-search-cancel-button{
       <div id="dash-qa"></div>
     </div>
     <div class="list-section">
-      <div class="list-header">📅 Disponibilità flotta — 14 giorni</div>
+      <div class="list-header">Cerca tra tutti i dati</div>
+      <div id="dash-cerca">
+        <div class="ios-search" style="margin-bottom:0">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          <input type="search" id="search-globale" placeholder="Cerca per importo, tipo, descrizione…" oninput="cercaGlobale(this.value)">
+        </div>
+        <div id="cerca-risultati"></div>
+      </div>
+    </div>
+    <div class="list-section">
+      <div class="list-header">Disponibilità flotta — 14 giorni</div>
       <div id="dash-cal"></div>
     </div>
     <div class="list-section">
@@ -1104,12 +1108,59 @@ input[type="search"]::-webkit-search-cancel-button{
       <button class="pill" onclick="setFV('noleggiato',this)">Noleggiati</button>
       <button class="pill" onclick="setFV('venduto',this)">Venduti</button>
       <button class="pill" onclick="setFV('manutenzione',this)">Manut.</button>
-      <button class="pill" onclick="setFDest('noleggio')">🔑 Solo noleggio</button>
-      <button class="pill" onclick="setFDest('vendita')">💰 Solo vendita</button>
+      <button class="pill" onclick="setFDest('noleggio')">Solo noleggio</button>
+      <button class="pill" onclick="setFDest('vendita')">Solo vendita</button>
     </div>
   </div>
   <div class="scroll-body" style="padding-top:12px"><div class="ios-list" id="list-veicoli"></div></div>
   <button class="fab" onclick="openSheet('veicolo')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg></button>
+</div>
+
+<!-- ══ ANAGRAFICHE (Clienti + Veicoli + Fornitori unificati) ══ -->
+<div class="page" id="pg-anagrafiche">
+  <div class="nav-bar">
+    <div class="nav-bar-top"><div class="nav-large-title">Anagrafiche</div></div>
+    <div class="filter-pills" id="ana-tabs">
+      <button class="pill on" id="ana-tab-clienti"   onclick="setAnaTab('clienti',this)">Clienti</button>
+      <button class="pill"    id="ana-tab-veicoli"   onclick="setAnaTab('veicoli',this)">Veicoli</button>
+      <button class="pill"    id="ana-tab-fornitori" onclick="setAnaTab('fornitori',this)">Fornitori</button>
+    </div>
+    <!-- Search dinamico per clienti/veicoli -->
+    <div class="ios-search" id="ana-search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      <input type="search" id="search-anagrafiche" placeholder="Cerca…" oninput="renderAnaTab()">
+    </div>
+    <!-- Filtri veicoli (visibili solo tab veicoli) -->
+    <div class="filter-pills" id="ana-filter-veicoli" style="display:none">
+      <button class="pill on" onclick="setFV('tutti',this)">Tutti</button>
+      <button class="pill" onclick="setFV('disponibile',this)">Disponibili</button>
+      <button class="pill" onclick="setFV('noleggiato',this)">Noleggiati</button>
+      <button class="pill" onclick="setFV('venduto',this)">Venduti</button>
+      <button class="pill" onclick="setFV('manutenzione',this)">Manut.</button>
+      <button class="pill" onclick="setFDest('noleggio')">Solo noleggio</button>
+      <button class="pill" onclick="setFDest('vendita')">Solo vendita</button>
+    </div>
+  </div>
+  <div class="scroll-body" style="padding-top:12px" id="ana-body"></div>
+  <button class="fab" id="ana-fab" onclick="openAnaFab()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
+</div>
+
+<!-- ══ COSTI (centralizzato — expenses + company_costs) ══ -->
+<div class="page" id="pg-costi">
+  <div class="nav-bar">
+    <div class="nav-bar-top"><div class="nav-large-title">Costi</div></div>
+    <div class="filter-pills" id="costi-tabs">
+      <button class="pill on" id="costi-tab-veicoli"  onclick="setCostiTab('veicoli',this)">Veicoli</button>
+      <button class="pill"    id="costi-tab-azienda"  onclick="setCostiTab('azienda',this)">Aziendali</button>
+      <button class="pill"    id="costi-tab-tutti"    onclick="setCostiTab('tutti',this)">Tutti</button>
+    </div>
+  </div>
+  <div class="scroll-body" style="padding-top:12px" id="costi-body"></div>
+  <button class="fab" id="costi-fab" onclick="openCostiFab()">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor"><path d="M12 5v14M5 12h14"/></svg>
+  </button>
 </div>
 
 <!-- ══ DOCUMENTI ══ -->
@@ -1120,7 +1171,7 @@ input[type="search"]::-webkit-search-cancel-button{
       <button class="pill on" onclick="setDocTab('noleggi',this)">Noleggi</button>
       <button class="pill" onclick="setDocTab('vendite',this)">Vendite</button>
       <button class="pill" onclick="setDocTab('ddt',this)">DDT</button>
-      <button class="pill" onclick="setDocTab('calendario',this)">📅 Calendario</button>
+      <button class="pill" onclick="setDocTab('calendario',this)">Calendario</button>
     </div>
   </div>
   <div class="scroll-body" style="padding-top:12px" id="docs-body"></div>
@@ -1134,9 +1185,9 @@ input[type="search"]::-webkit-search-cancel-button{
     <div class="filter-pills" id="gest-tabs">
       <button class="pill on" onclick="setGestTab('costi',this)">Costi & Manut.</button>
       <button class="pill" onclick="setGestTab('fornitori',this)">Fornitori</button>
-      <button class="pill" onclick="setGestTab('danni',this)">🚗💥 Danni</button>
+      <button class="pill" onclick="setGestTab('danni',this)">Danni</button>
       <button class="pill" onclick="setGestTab('report',this)">Report</button>
-      <button class="pill" onclick="setGestTab('analisi',this)">📊 Analisi</button>
+      <button class="pill" onclick="setGestTab('analisi',this)">Analisi</button>
     </div>
   </div>
   <div class="scroll-body" style="padding-top:12px" id="gest-body"></div>
@@ -1157,9 +1208,9 @@ input[type="search"]::-webkit-search-cancel-button{
     <div class="nav-bar-top"><div class="nav-large-title">Finanze</div></div>
     <div class="filter-pills" id="fin-tabs">
       <button class="pill on" onclick="setFinTab('overview',this)">Panoramica</button>
-      <button class="pill" onclick="setFinTab('cassa',this)">💵 Cassa</button>
-      <button class="pill" onclick="setFinTab('banca',this)">🏦 Banca</button>
-      <button class="pill" onclick="setFinTab('costi_az',this)">🏢 Costi aziendali</button>
+      <button class="pill" onclick="setFinTab('cassa',this)">Cassa</button>
+      <button class="pill" onclick="setFinTab('banca',this)">Banca</button>
+      <button class="pill" onclick="setFinTab('costi_az',this)">Costi aziendali</button>
     </div>
   </div>
   <div class="scroll-body" style="padding-top:12px" id="fin-body"></div>
@@ -1222,14 +1273,9 @@ input[type="search"]::-webkit-search-cancel-button{
       <span class="tab-label">Dashboard</span>
     </button>
 
-    <button class="tab-btn" id="nav-veicoli" onclick="goTo('veicoli',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
-      <span class="tab-label">Veicoli</span>
-    </button>
-
-    <button class="tab-btn" id="nav-clienti" onclick="goTo('clienti',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-      <span class="tab-label">Clienti</span>
+    <button class="tab-btn" id="nav-anagrafiche" onclick="goTo('anagrafiche',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      <span class="tab-label">Anagrafiche</span>
     </button>
 
     <button class="tab-btn" id="nav-docs" onclick="goTo('docs',this)">
@@ -1241,18 +1287,6 @@ input[type="search"]::-webkit-search-cancel-button{
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       <span class="tab-label">Scadenze</span>
       <span class="tab-badge" id="tab-badge-scad" style="display:none">0</span>
-    </button>
-
-    <div class="sidebar-sep">Gestione</div>
-
-    <button class="tab-btn" id="nav-gestione" onclick="goTo('gestione',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>
-      <span class="tab-label">Gestione</span>
-    </button>
-
-    <button class="tab-btn" id="nav-finanze" onclick="goTo('finanze',this)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
-      <span class="tab-label">Finanze</span>
     </button>
 
   </div>
@@ -1353,6 +1387,7 @@ let SETTINGS={
 let ROLE=localStorage.getItem('as_role')||'admin';
 let CURRENT_USER=null; // {id, username, ruolo}
 let fV='tutti',fVDest='tutti',docTab='noleggi',gestTab='costi',fNoleggi='tutti',fDdt='tutti',fRem='tutti',finTab='overview';
+let anaTab='clienti', costiTab='veicoli'; // nuove pagine centralizzate
 let curForm=null,pendingDel=null,syncing=false,pendingDestChange=null;
 let calOffset=0;
 
@@ -1361,19 +1396,22 @@ async function apiFetch(action, body=null){
   try {
     let r;
     if(body){
-      // POST: use text/plain to avoid CORS preflight issues with Google Apps Script
-      r = await fetch(API_URL+'?action='+action, {
+      // Invia action nell'URL (compatibile con tutti i GAS) E nel body JSON
+      // text/plain non triggera CORS preflight ed è letto da GAS via e.postData.contents
+      const payload = JSON.stringify({_action: action, ...body});
+      r = await fetch(API_URL+'?action='+encodeURIComponent(action), {
         method:'POST',
         headers:{'Content-Type':'text/plain;charset=utf-8'},
-        body: JSON.stringify(body)
+        body: payload
       });
     } else {
-      r = await fetch(API_URL+'?action='+action);
+      r = await fetch(API_URL+'?action='+encodeURIComponent(action));
     }
     if(!r.ok) throw new Error('HTTP '+r.status);
     const text = await r.text();
+    console.log('[API raw]', action, text.slice(0,300));
     let j;
-    try { j = JSON.parse(text); } catch(pe) { throw new Error('Risposta non valida: '+text.slice(0,100)); }
+    try { j = JSON.parse(text); } catch(pe) { throw new Error('Risposta non valida: '+text.slice(0,200)); }
     if(!j.ok) throw new Error(j.error || action+' fallito');
     return j;
   } catch(e) {
@@ -1408,17 +1446,61 @@ async function syncDown(){
     DATA.payments=d.data.payments||[];
     DATA.company_costs=d.data.company_costs||[];
     DATA.users=d.data.users||[];
-    if(s.settings&&Object.keys(s.settings).length)SETTINGS={...SETTINGS,...s.settings};
+
+    // Applica impostazioni testuali dal server
+    if(s.settings&&Object.keys(s.settings).length){
+      SETTINGS={...SETTINGS,...s.settings};
+    } else {
+      // Fallback: backup locale completo
+      try{
+        const backup=localStorage.getItem('as_settings_backup');
+        if(backup){SETTINGS={...SETTINGS,...JSON.parse(backup)};}
+      }catch(e){}
+    }
+
+    // Il logo è sempre in localStorage (non va su Google Sheets)
+    try{
+      const savedLogo=localStorage.getItem('as_logo_backup');
+      if(savedLogo&&!SETTINGS.logo_base64) SETTINGS.logo_base64=savedLogo;
+    }catch(e){}
+
     setSS('ok','Sincronizzato');
     renderAll();
     updateScadenzeBadge();
-  }catch(e){setSS('err','Errore');toast('Errore connessione: '+e.message,'err');}
+    updateUserNav();
+  }catch(e){
+    setSS('err','Errore');
+    toast('Errore connessione: '+e.message,'err');
+    // Ripristina settings e logo da localStorage
+    try{
+      const backup=localStorage.getItem('as_settings_backup');
+      if(backup){SETTINGS={...SETTINGS,...JSON.parse(backup)};}
+      const savedLogo=localStorage.getItem('as_logo_backup');
+      if(savedLogo&&!SETTINGS.logo_base64) SETTINGS.logo_base64=savedLogo;
+      updateUserNav();
+    }catch(be){}
+  }
 }
 async function syncUp(){
-  if(syncing)return;syncing=true;setSS('syncing','Salvo…');
-  try{await apiWrite(DATA);setSS('ok','Salvato ✓');}
-  catch(e){setSS('err','Errore');toast('Errore salvataggio','err');setTimeout(async()=>{try{await apiWrite(DATA);setSS('ok','Salvato ✓');}catch{}},4000);}
-  syncing=false;
+  if(syncing)return;
+  syncing=true;
+  setSS('syncing','Salvo…');
+  try{
+    await apiWrite(DATA);
+    setSS('ok','Salvato ✓');
+  }catch(e){
+    setSS('err','Errore');
+    const msg=e.message||'Errore sconosciuto';
+    console.error('[syncUp]',msg);
+    toast('Errore sync: '+msg,'err');
+    // Riprova dopo 5 secondi
+    setTimeout(async()=>{
+      try{await apiWrite(DATA);setSS('ok','Salvato ✓');}
+      catch(e2){setSS('err','Errore');console.error('[syncUp retry]',e2.message);}
+    },5000);
+  }finally{
+    syncing=false;
+  }
 }
 
 /* ══════════════════════ NAV ══════════════════════ */
@@ -1446,17 +1528,169 @@ function goTo(p,btn){
   const pg=document.getElementById('pg-'+p);
   if(pg)pg.classList.add('active');
   if(btn)btn.classList.add('active');
-  // Chiudi sempre la sidebar dopo la navigazione
   closeSidebar();
   if(p==='settings')renderSettings();
   else if(p==='docs')renderDocs();
-  else if(p==='gestione')renderGest();
   else if(p==='scadenze')renderScadenze();
-  else if(p==='finanze')renderFinanze();
+  else if(p==='anagrafiche')renderAnagrafiche();
+  // Legacy redirect: vecchie pagine → anagrafiche con tab giusto
+  else if(p==='clienti'){anaTab='clienti';goTo('anagrafiche',document.getElementById('nav-anagrafiche'));}
+  else if(p==='veicoli'){anaTab='veicoli';goTo('anagrafiche',document.getElementById('nav-anagrafiche'));}
   else renderAll();
 }
 
-function renderAll(){renderDash();renderClienti();renderVeicoli();}
+function renderAll(){
+  renderDash();renderClienti();renderVeicoli();
+  if(document.getElementById('pg-anagrafiche')?.classList.contains('active'))renderAnagrafiche();
+}
+
+/* ══════════════════════════════════════════════════════
+   ANAGRAFICHE CENTRALIZZATE
+   Clienti + Veicoli + Fornitori in un'unica pagina
+══════════════════════════════════════════════════════ */
+function renderAnagrafiche(){
+  // Aggiorna active tab pills
+  ['clienti','veicoli','fornitori'].forEach(t=>{
+    const el=document.getElementById('ana-tab-'+t);
+    if(el)el.classList.toggle('on',t===anaTab);
+  });
+  // Mostra/nascondi filtri veicoli e search
+  const filterVei=document.getElementById('ana-filter-veicoli');
+  const searchWrap=document.getElementById('ana-search-wrap');
+  if(filterVei)filterVei.style.display=anaTab==='veicoli'?'':'none';
+  if(searchWrap)searchWrap.style.display=anaTab==='fornitori'?'none':'';
+  renderAnaTab();
+}
+
+function setAnaTab(tab,btn){
+  anaTab=tab;
+  document.querySelectorAll('#ana-tabs .pill').forEach(p=>p.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderAnagrafiche();
+}
+
+function renderAnaTab(){
+  const body=document.getElementById('ana-body');
+  if(!body)return;
+  if(anaTab==='clienti'){
+    // Riusa la logica di renderClienti ma in ana-body
+    const q=(document.getElementById('search-anagrafiche')?.value||'').toLowerCase();
+    const list=DATA.clienti.filter(c=>{
+      const n=nomeAnagrafica(c).toLowerCase();
+      return !q||n.includes(q)||(c.telefono||'').includes(q)||(c.codice_fiscale||'').toLowerCase().includes(q);
+    }).sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
+    if(!list.length){body.innerHTML=`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="44" height="44"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div><h3>Nessun cliente</h3><p>Aggiungi con +</p></div>`;return;}
+    body.innerHTML=`<div class="ios-list">${list.map(c=>{
+      const nol=DATA.noleggi.filter(n=>n.customer_id===c.id&&n.stato==='attivo').length;
+      return`<div class="ios-row" onclick="showCliente('${c.id}')">
+        <div class="ios-row-icon" style="background:var(--blue-bg);color:var(--blue)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div>
+        <div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)}</div><div class="ios-row-sub">${c.tipo_anagrafica==='azienda'?'Azienda':'Privato'}${c.telefono?' · '+c.telefono:''}</div></div>
+        ${nol?`<span class="badge b-blue">${nol} att.</span>`:''}
+      </div>`;}).join('')}</div>`;
+  } else if(anaTab==='veicoli'){
+    // Riusa logica renderVeicoli
+    const q=(document.getElementById('search-anagrafiche')?.value||'').toLowerCase();
+    let list=DATA.veicoli;
+    if(fV!=='tutti')list=list.filter(x=>x.stato===fV);
+    if(fVDest!=='tutti')list=list.filter(x=>x.destinazione===fVDest);
+    if(q)list=list.filter(x=>(x.marca+' '+x.modello+' '+x.targa).toLowerCase().includes(q));
+    list=[...list].sort((a,b)=>a.marca.localeCompare(b.marca));
+    if(!list.length){body.innerHTML=`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="44" height="44"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg></div><h3>Nessun veicolo</h3><p>Aggiungi con +</p></div>`;return;}
+    const SI={disponibile:'b-green',noleggiato:'b-blue',manutenzione:'b-orange',venduto:'b-dim'};
+    const SICOL={disponibile:'var(--green-bg)',noleggiato:'var(--blue-bg)',manutenzione:'var(--orange-bg)',venduto:'var(--bg3)'};
+    body.innerHTML=`<div class="ios-list">${list.map(x=>`<div class="ios-row" onclick="showVeicolo('${x.id}')">
+      <div class="ios-row-icon" style="background:${SICOL[x.stato]||'var(--bg3)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg></div>
+      <div class="ios-row-body"><div class="ios-row-title">${x.marca} ${x.modello}</div><div class="ios-row-sub">${x.targa} · ${x.anno||'—'} · ${fN(x.km)} km</div></div>
+      <div class="ios-row-right"><span class="badge ${SI[x.stato]||'b-dim'}">${x.stato}</span><span class="badge ${x.destinazione==='noleggio'?'b-teal':'b-purple'}" style="font-size:9px">${x.destinazione}</span></div>
+    </div>`).join('')}</div>`;
+  } else {
+    // Fornitori — usa renderFornitoriIn logic
+    renderFornitoriIn(body);
+  }
+}
+
+function openAnaFab(){
+  if(anaTab==='clienti')openSheet('cliente');
+  else if(anaTab==='veicoli')openSheet('veicolo');
+  else openSheet('fornitore');
+}
+
+/* ══════════════════════════════════════════════════════
+   COSTI CENTRALIZZATI
+   expenses (veicoli) + company_costs (aziendali)
+   Con flag "pagato" e tipologia estesa
+══════════════════════════════════════════════════════ */
+function renderCostiCentralizzati(){
+  ['veicoli','azienda','tutti'].forEach(t=>{
+    const el=document.getElementById('costi-tab-'+t);
+    if(el)el.classList.toggle('on',t===costiTab);
+  });
+  const body=document.getElementById('costi-body');
+  if(!body)return;
+  const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
+  const cM=Object.fromEntries(DATA.clienti.map(c=>[c.id,c]));
+  const sM=Object.fromEntries((DATA.suppliers||[]).map(s=>[s.id,s]));
+
+  // Unifica expenses e company_costs in una vista coerente
+  const expItems=(DATA.expenses||[]).map(e=>({...e,_tipo:'veicolo',_label:vM[e.vehicle_id]?`${vM[e.vehicle_id].marca} ${vM[e.vehicle_id].modello}`:null}));
+  const ccItems=(DATA.company_costs||[]).map(e=>({...e,_tipo:'azienda',_label:'Costo aziendale'}));
+
+  let list;
+  if(costiTab==='veicoli')list=expItems;
+  else if(costiTab==='azienda')list=ccItems;
+  else list=[...expItems,...ccItems];
+
+  list=[...list].sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+
+  // Totali
+  const totale=list.reduce((s,e)=>s+(parseFloat(e.costo||e.importo)||0),0);
+  const pagato=list.filter(e=>e.pagato).reduce((s,e)=>s+(parseFloat(e.costo||e.importo)||0),0);
+  const daPagare=totale-pagato;
+
+  const summary=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:4px">
+    <div class="kpi-card"><div class="kpi-num" style="color:var(--red)">${fE(totale)}</div><div class="kpi-lbl">Totale</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:var(--green)">${fE(pagato)}</div><div class="kpi-lbl">Pagato</div></div>
+    <div class="kpi-card"><div class="kpi-num" style="color:var(--orange)">${fE(daPagare)}</div><div class="kpi-lbl">Da pagare</div></div>
+  </div>`;
+
+  if(!list.length){body.innerHTML=summary+`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="44" height="44"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><h3>Nessun costo</h3><p>Aggiungi con +</p></div>`;return;}
+
+  const rows=list.map(e=>{
+    const imp=parseFloat(e.costo||e.importo)||0;
+    const isPagato=!!e.pagato;
+    const vx=e.vehicle_id?vM[e.vehicle_id]:null;
+    const sub=[
+      e._tipo==='veicolo'&&vx?`${vx.marca} ${vx.modello}`:null,
+      fD(e.data),
+      e.tipo||e.categoria||'—',
+      isPagato?'Pagato':'Da pagare',
+    ].filter(Boolean).join(' · ');
+    const badgeCls=isPagato?'b-green':'b-orange';
+    const badgeLbl=isPagato?'Pagato':'Da pagare';
+    const iconBg=e._tipo==='veicolo'?'var(--blue-bg)':'var(--purple-bg)';
+    const iconColor=e._tipo==='veicolo'?'var(--blue)':'var(--purple)';
+    const fn=e._tipo==='veicolo'?`showExpense('${e.id}')`:`showCompanyCost('${e.id}')`;
+    return`<div class="ios-row" onclick="${fn}">
+      <div class="ios-row-icon" style="background:${iconBg};color:${iconColor}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
+      <div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo||e.categoria||'Costo'}</div><div class="ios-row-sub">${sub}</div></div>
+      <div class="ios-row-right"><span class="badge ${badgeCls}" style="font-size:9px">${badgeLbl}</span><span style="font-size:14px;font-weight:600;color:var(--red)">${fE(imp)}</span></div>
+    </div>`;
+  }).join('');
+
+  body.innerHTML=summary+`<div class="ios-list">${rows}</div>`;
+}
+
+function setCostiTab(tab,btn){
+  costiTab=tab;
+  document.querySelectorAll('#costi-tabs .pill').forEach(p=>p.classList.remove('on'));
+  if(btn)btn.classList.add('on');
+  renderCostiCentralizzati();
+}
+
+function openCostiFab(){
+  if(costiTab==='azienda')openSheet('company_cost');
+  else openSheet('expense');
+}
 
 function updateUserNav(){
   if(!CURRENT_USER)return;
@@ -1506,8 +1740,7 @@ function renderDash(){
   const totCosti=E.reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
   const paymentsEntr=(DATA.payments||[]).filter(p=>p.tipo==='entrata').reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
   const paymentsUsc=(DATA.payments||[]).filter(p=>p.tipo==='uscita').reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
-  const costiAz=(DATA.company_costs||[]).reduce((s,c)=>s+(parseFloat(c.importo)||0),0);
-  const profitto=paymentsEntr-paymentsUsc-costiAz;
+  const costiAz=(DATA.company_costs||[]).reduce((s,c)=>s+(parseFloat(c.importo)||0),0);  const profitto=paymentsEntr-paymentsUsc-costiAz;
   const urgentRem=DATA.reminders.filter(r=>r.stato!=='completato'&&remStatus(r)!=='ok').length;
   const danniAttivi=(D||[]).filter(d=>d.stato==='attivo').length;
 
@@ -1596,7 +1829,7 @@ function renderDash(){
     </div>`;
   });
   const rows=[...recN,...recS];
-  document.getElementById('dash-recent').innerHTML=!rows.length?`<div class="empty-state" style="padding:30px"><div class="ei">📋</div><p>Nessuna attività</p></div>`:rows.join('');
+  document.getElementById('dash-recent').innerHTML=!rows.length?`<div class="empty-state" style="padding:30px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div><p>Nessuna attività</p></div>`:rows.join('');
 }
 
 /* ══════════════════════ TOAST ══════════════════════ */
@@ -1883,7 +2116,92 @@ const CF={
   }
 };
 
-/* ══════════════════════ CLIENTI ══════════════════════ */
+/* ══ RICERCA GLOBALE — cerca in tutti gli array ══ */
+function cercaGlobale(q){
+  const el=document.getElementById('cerca-risultati');
+  if(!el)return;
+  q=(q||'').trim().toLowerCase();
+  if(!q){el.innerHTML='';return;}
+
+  const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
+  const cM=Object.fromEntries(DATA.clienti.map(c=>[c.id,c]));
+  const results=[];
+
+  // Cerca in expenses
+  DATA.expenses.forEach(e=>{
+    const vx=vM[e.vehicle_id]||{};
+    const txt=[e.tipo,e.descrizione,String(e.costo||''),vx.marca,vx.modello,vx.targa].join(' ').toLowerCase();
+    if(txt.includes(q)) results.push({
+      label:`${e.tipo||'Costo'} — ${vx.marca||'?'} ${vx.modello||''}`,
+      sub:`${fD(e.data)} · ${fE(e.costo)}`,
+      color:'var(--orange)', fn:`showExpense('${e.id}')`,
+      badge:'Costo veicolo'
+    });
+  });
+
+  // Cerca in company_costs
+  DATA.company_costs.forEach(c=>{
+    const txt=[c.categoria,c.tipo,c.descrizione,String(c.importo||'')].join(' ').toLowerCase();
+    if(txt.includes(q)) results.push({
+      label:`${c.categoria||'Costo'} — ${c.tipo||''}`,
+      sub:`${fD(c.data)} · ${fE(c.importo)}`,
+      color:'var(--orange)', fn:`showCostoAz('${c.id}')`,
+      badge:'Costo aziendale'
+    });
+  });
+
+  // Cerca in reminders
+  DATA.reminders.forEach(r=>{
+    const vx=vM[r.riferimento_id]||{};
+    const txt=[r.tipo,r.descrizione,r.note,String(r.importo||'')].join(' ').toLowerCase();
+    if(txt.includes(q)) results.push({
+      label:`${r.tipo||'Scadenza'} — ${r.descrizione||''}`,
+      sub:`${fD(r.data_scadenza)} · ${r.importo>0?fE(r.importo):'—'} · ${r.stato}`,
+      color:'var(--blue)', fn:`showReminder('${r.id}')`,
+      badge:'Scadenza'
+    });
+  });
+
+  // Cerca in payments
+  DATA.payments.forEach(p=>{
+    const txt=[p.tipo,p.metodo,p.note,p.categoria,String(p.importo||'')].join(' ').toLowerCase();
+    if(txt.includes(q)) results.push({
+      label:`${p.tipo==='entrata'?'Entrata':'Uscita'} — ${p.metodo||''}`,
+      sub:`${fD(p.data)} · ${fE(p.importo)}`,
+      color:p.tipo==='entrata'?'var(--green)':'var(--red)', fn:`showPayment('${p.id}')`,
+      badge:'Pagamento'
+    });
+  });
+
+  // Cerca in noleggi
+  DATA.noleggi.forEach(n=>{
+    const c=cM[n.customer_id]||{},vx=vM[n.vehicle_id]||{};
+    const txt=[nomeAnagrafica(c),vx.marca,vx.modello,vx.targa,String(n.prezzo||'')].join(' ').toLowerCase();
+    if(txt.includes(q)) results.push({
+      label:`Noleggio — ${nomeAnagrafica(c)}`,
+      sub:`${vx.marca||'?'} ${vx.modello||''} · ${fD(n.data_inizio)} · ${fE(n.prezzo)}`,
+      color:'var(--green)', fn:`showNoleggio('${n.id}')`,
+      badge:'Noleggio'
+    });
+  });
+
+  if(!results.length){
+    el.innerHTML=`<p style="font-size:13px;color:var(--label3);padding:12px 4px">Nessun risultato per "${q}"</p>`;
+    return;
+  }
+
+  el.innerHTML=`<div class="ios-list" style="margin-top:6px">${results.map(r=>`
+    <div class="ios-row" onclick="${r.fn}" style="cursor:pointer">
+      <div class="ios-row-body">
+        <div class="ios-row-title">${r.label}</div>
+        <div class="ios-row-sub">${r.sub}</div>
+      </div>
+      <div class="ios-row-right">
+        <span class="badge b-dim" style="font-size:9px">${r.badge}</span>
+        <span style="color:${r.color};font-size:12px">›</span>
+      </div>
+    </div>`).join('')}</div>`;
+}
 function renderClienti(){
   const q=(document.getElementById('search-clienti')?.value||'').toLowerCase();
   const list=DATA.clienti.filter(c=>{
@@ -1949,10 +2267,10 @@ function showCliente(id){
       <div class="ios-list">${infoRows}</div>
     </div>
     <div class="list-section"><div class="list-header">Noleggi (${nl.length})</div>
-      <div class="ios-list">${nl.length?nl.map(n=>{const vx=vM[n.vehicle_id]||{};return`<div class="ios-row"><div class="ios-row-icon" style="background:var(--bg3)">🔑</div><div class="ios-row-body"><div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
+      <div class="ios-list">${nl.length?nl.map(n=>{const vx=vM[n.vehicle_id]||{};return`<div class="ios-row"><div class="ios-row-icon" style="background:var(--bg3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn primary" onclick="editCliente('${id}')">✏️ Modifica</button>
+      <button class="ios-btn primary" onclick="editCliente('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
       <button class="ios-btn danger" onclick="askDel('cliente','${id}')">Elimina cliente</button>
     </div>`;
   openDetail();
@@ -2009,7 +2327,7 @@ function showVeicolo(id){
   document.getElementById('detail-title').textContent=`${vx.marca} ${vx.modello}`;
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:50px;margin-bottom:8px">🚗</div>
+      <div style="font-size:50px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg></div>
       <div class="hero-name">${vx.marca} ${vx.modello}</div>
       <div class="hero-sub" style="font-family:monospace;font-size:16px">${vx.targa}</div>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
@@ -2039,12 +2357,12 @@ function showVeicolo(id){
     </div>
 
     <div class="list-section"><div class="list-header">Noleggi (${nl.length})</div>
-      <div class="ios-list">${nl.length?nl.map(n=>{const c=cM[n.customer_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:var(--bg3)">👤</div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
+      <div class="ios-list">${nl.length?nl.map(n=>{const c=cM[n.customer_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:var(--bg3)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)}</div><div class="ios-row-sub">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span></div>`;}).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun noleggio</p></div>'}</div>
     </div>
 
     ${!isVenduto&&isNoleggio?`
     <div class="list-section"><div class="list-header">Costi e manutenzioni (${exps.length})</div>
-      <div class="ios-list">${exps.length?exps.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)">🔧</div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)} · ${e.tipo}${e.periodicita&&e.periodicita!=='una-tantum'?' · 🔄 '+e.periodicita:''}</div></div><span style="font-size:14px;font-weight:600;color:var(--orange)">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun costo</p></div>'}</div>
+      <div class="ios-list">${exps.length?exps.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)} · ${e.tipo}${e.periodicita&&e.periodicita!=='una-tantum'?' · 🔄 '+e.periodicita:''}</div></div><span style="font-size:14px;font-weight:600;color:var(--orange)">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun costo</p></div>'}</div>
     </div>
 
     <div class="list-section"><div class="list-header">Scadenze veicolo (${scadVeicolo.length})</div>
@@ -2053,11 +2371,11 @@ function showVeicolo(id){
 
     ${isVenduto?`
     ${exps.filter(e=>e.tipo==='garanzia').length?`
-    <div class="list-section"><div class="list-header">🛡 Garanzie post-vendita (${exps.filter(e=>e.tipo==='garanzia').length})</div>
+    <div class="list-section"><div class="list-header">Garanzie post-vendita (${exps.filter(e=>e.tipo==='garanzia').length})</div>
       <div class="ios-list">${exps.filter(e=>e.tipo==='garanzia').map(e=>{
         const cliente=DATA.clienti.find(x=>x.id===e.garanzia_cliente_id);
         return`<div class="ios-row" onclick="showExpense('${e.id}')">
-          <div class="ios-row-icon" style="background:var(--purple-bg)">🛡</div>
+          <div class="ios-row-icon" style="background:var(--purple-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg></div>
           <div class="ios-row-body">
             <div class="ios-row-title">${e.descrizione||'Garanzia'}${cliente?' — '+nomeAnagrafica(cliente):''}</div>
             <div class="ios-row-sub">${fD(e.data)}${e.garanzia_scadenza?' · Scade '+fD(e.garanzia_scadenza):''}</div>
@@ -2067,13 +2385,13 @@ function showVeicolo(id){
     </div>`:''}`:''}
 
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn primary" onclick="editVeicolo('${id}')">✏️ Modifica</button>
-      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}'})">🔧 Aggiungi costo</button>`:''}
-      ${isVenduto?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}',tipo:'garanzia'})" style="background:var(--purple-bg);color:var(--purple)">🛡 Aggiungi garanzia</button>`:''}
-      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('reminder',{riferimento_id:'${id}',riferimento_tipo:'veicolo'})" style="background:var(--orange-bg);color:var(--orange)">🔔 Aggiungi scadenza</button>`:''}
-      ${vx.destinazione==='vendita'&&vx.stato==='disponibile'?`<button class="ios-btn success" onclick="openSheet('vendita',{vehicle_id:'${id}'})">💰 Registra vendita</button>`:''}
-      ${!isVenduto&&vx.destinazione==='noleggio'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','vendita')">💰 Sposta in vendita</button>`:''}
-      ${!isVenduto&&vx.destinazione==='vendita'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','noleggio')">🔑 Sposta in noleggio</button>`:''}
+      <button class="ios-btn primary" onclick="editVeicolo('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
+      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Aggiungi costo</button>`:''}
+      ${isVenduto?`<button class="ios-btn neutral" onclick="openSheet('expense',{vehicle_id:'${id}',tipo:'garanzia'})" style="background:var(--purple-bg);color:var(--purple)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg> Garanzia</button>`:''}
+      ${!isVenduto&&isNoleggio?`<button class="ios-btn neutral" onclick="openSheet('reminder',{riferimento_id:'${id}',riferimento_tipo:'veicolo'})" style="background:var(--orange-bg);color:var(--orange)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg> Scadenza</button>`:''}
+      ${vx.destinazione==='vendita'&&vx.stato==='disponibile'?`<button class="ios-btn success" onclick="openSheet('vendita',{vehicle_id:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg> Registra vendita</button>`:''}
+      ${!isVenduto&&vx.destinazione==='noleggio'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','vendita')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg> Sposta in vendita</button>`:''}
+      ${!isVenduto&&vx.destinazione==='vendita'?`<button class="ios-btn warn" onclick="cambiaDestinazione('${id}','noleggio')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg> Sposta in noleggio</button>`:''}
       <button class="ios-btn danger" onclick="askDel('veicolo','${id}')">Elimina veicolo</button>
     </div>`;
   openDetail();
@@ -2110,7 +2428,7 @@ function renderNoleggiIn(body){
       <button class="pill ${fNoleggi==='completato'?'on':''}" onclick="setFNol('completato',this)">Completati</button>
     </div>
     <div style="height:10px"></div>
-    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei">📅</div><h3>Nessun noleggio</h3><p>Crea con +</p></div>`:list.map(n=>{const c=cM[n.customer_id]||{},vx=vM[n.vehicle_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:${n.stato==='attivo'?'var(--green-bg)':'var(--bg3)'}">🔑</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><div class="ios-row-right"><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span><span style="font-size:14px;font-weight:600;color:var(--green)">${fE(n.prezzo)}</span></div></div>`;}).join('')}</div>`;
+    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><h3>Nessun noleggio</h3><p>Crea con +</p></div>`:list.map(n=>{const c=cM[n.customer_id]||{},vx=vM[n.vehicle_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:${n.stato==='attivo'?'var(--green-bg)':'var(--bg3)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)||'?'}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><div class="ios-row-right"><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span><span class="badge ${n.incassato?'b-green':'b-orange'}" style="font-size:9px">${n.incassato?'Incassato':'Da incass.'}</span><span style="font-size:14px;font-weight:600;color:var(--green)">${fE(n.prezzo)}</span></div></div>`;}).join('')}</div>`;
 }
 function setFNol(v,btn){document.querySelectorAll('#docs-body .filter-pills .pill').forEach(p=>p.classList.remove('on'));btn.classList.add('on');fNoleggi=v;renderDocs();}
 
@@ -2118,17 +2436,18 @@ function showNoleggio(id){
   const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
   const c=DATA.clienti.find(x=>x.id===n.customer_id)||{};
   const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
-  const carbLabels={'pieno':'⛽ Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'¼','riserva':'⚠ Riserva'};
+  const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'¼','riserva':'Riserva'};
   const kmInfo=n.km_tipo==='illimitati'?'Illimitati':n.km_tipo==='giornalieri'?`${fN(n.km_inclusi)} km/giorno`:`${fN(n.km_inclusi)} km totali`;
   const kmDiff=n.km_fine&&n.km_inizio?n.km_fine-n.km_inizio:null;
   document.getElementById('detail-title').textContent='Noleggio';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">🔑</div>
-      <div class="hero-name">${c.cognome||'?'} ${c.nome||''}</div>
+      <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="46" height="46"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div>
+      <div class="hero-name">${nomeAnagrafica(c)||'?'}</div>
       <div class="hero-sub">${vx.marca||'?'} ${vx.modello||''} · ${vx.targa||''}</div>
       <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span>
+        <span class="badge ${n.incassato?'b-green':'b-orange'}">${n.incassato?'Incassato':'Da incassare'}</span>
         ${n.km_tipo?`<span class="badge b-blue">${kmInfo}</span>`:''}
       </div>
     </div>
@@ -2136,6 +2455,7 @@ function showNoleggio(id){
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Periodo</div><div class="ios-row-title">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo</div><div class="ios-row-title amount-big">${fE(n.prezzo)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Incasso</div><div class="ios-row-title" style="color:${n.incassato?'var(--green)':'var(--orange)'}">${n.incassato?'Incassato':'Da incassare'}</div></div></div>
         ${n.km_tipo?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM inclusi</div><div class="ios-row-title">${kmInfo}</div></div></div>`:''}
       </div>
     </div>
@@ -2155,13 +2475,18 @@ function showNoleggio(id){
         ${n.note_fine?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title" style="white-space:pre-wrap;font-size:14px">${n.note_fine}</div></div></div>`:''}
       </div></div>`:''}
     <div class="btn-stack" style="margin-top:8px">
-      ${n.stato==='attivo'&&n.km_inizio==null?`<button class="ios-btn primary" onclick="openSheet('checkout',{noleggioId:'${id}'})">🚗 Check-out (Consegna)</button>`:''}
-      ${n.stato==='attivo'&&n.km_inizio!=null&&n.km_fine==null?`<button class="ios-btn warn" onclick="openSheet('checkin',{noleggioId:'${id}'})">🏁 Check-in (Rientro)</button>`:''}
-      ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">✅ Chiudi Noleggio</button>`:''}
-      ${n.stato==='attivo'&&!n.km_inizio?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">✅ Chiudi rapido</button>`:''}
-      <button class="ios-btn neutral" onclick="genPdfNoleggio('${id}')">🖨 Contratto PDF</button>
-      <button class="ios-btn neutral" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)">📦 Genera DDT da contratto</button>
-      ${n.danni_rientro?`<button class="ios-btn neutral" onclick="genPdfContestazione('${id}')">📄 PDF Contestazione</button>`:''}
+      ${!n.incassato
+        ?`<button class="ios-btn success" onclick="toggleIncassatoNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Segna incassato</button>`
+        :`<button class="ios-btn neutral" onclick="toggleIncassatoNoleggio('${id}')">Annulla incasso</button>`
+      }
+      <button class="ios-btn primary" onclick="editNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
+      ${n.stato==='attivo'&&n.km_inizio==null?`<button class="ios-btn primary" onclick="openSheet('checkout',{noleggioId:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Check-out</button>`:''}
+      ${n.stato==='attivo'&&n.km_inizio!=null&&n.km_fine==null?`<button class="ios-btn warn" onclick="openSheet('checkin',{noleggioId:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Check-in</button>`:''}
+      ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Chiudi Noleggio</button>`:''}
+      ${n.stato==='attivo'&&!n.km_inizio?`<button class="ios-btn neutral" onclick="chiudiNoleggio('${id}')">Chiudi rapido</button>`:''}
+      <button class="ios-btn neutral" onclick="genPdfNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Contratto PDF</button>
+      <button class="ios-btn neutral" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Genera DDT</button>
+      ${n.danni_rientro?`<button class="ios-btn neutral" onclick="genPdfContestazione('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Verbale rientro</button>`:''}
       <button class="ios-btn danger" onclick="askDel('noleggio','${id}')">Elimina</button>
     </div>`;
   openDetail();
@@ -2188,12 +2513,66 @@ function generaDdtDaNoleggio(noleggioId){
   openSheet('ddt',prefill);
 }
 
-async function chiudiNoleggio(id){
+/* Toggle incasso noleggio */
+async function toggleIncassatoNoleggio(id){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
+    n.incassato=!n.incassato;
+    toast(n.incassato?'Segnato come incassato':'Incasso annullato');
+    showNoleggio(id); // ricarica il dettaglio
+    renderDocs();
+    await syncUp();
+  }catch(err){
+    console.error('[toggleIncassatoNoleggio]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+function editNoleggio(id){
   const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
-  n.stato='completato';
-  const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);
-  if(vx&&vx.stato==='noleggiato')vx.stato='disponibile';
-  closeDetail();renderAll();renderDocs();toast('Noleggio chiuso! ✅');await syncUp();
+  closeDetail();
+  openSheet('noleggio',n);
+}
+
+async function chiudiNoleggio(id){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
+    n.stato='completato';
+    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);
+    if(vx&&vx.stato==='noleggiato')vx.stato='disponibile';
+    closeDetail();renderAll();renderDocs();toast('Noleggio chiuso!');await syncUp();
+  }catch(err){
+    console.error('[chiudiNoleggio]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+/* Toggle incasso vendita */
+async function toggleIncassato(saleId){
+  try{
+    const s=DATA.sales.find(x=>x.id===saleId);if(!s)return;
+    s.incassato=!s.incassato;
+    toast(s.incassato?'Segnato come incassato':'Incasso annullato');
+    closeDetail();renderAll();renderDocs();await syncUp();
+  }catch(err){
+    console.error('[toggleIncassato]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+/* Toggle pagamento costo */
+async function togglePagato(expId){
+  try{
+    const e=DATA.expenses.find(x=>x.id===expId);if(!e)return;
+    e.pagato=!e.pagato;
+    toast(e.pagato?'Segnato come pagato':'Pagamento annullato');
+    closeDetail();renderAll();renderGest();
+    if(document.getElementById('pg-costi')?.classList.contains('active'))renderCostiCentralizzati();
+    await syncUp();
+  }catch(err){
+    console.error('[togglePagato]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* CHECK-OUT form (consegna veicolo) */
@@ -2208,7 +2587,7 @@ function bCheckout(body,d){
       </div>
       <div style="padding:8px 0 4px;font-size:12px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.05em">Carburante *</div>
       <div class="carb-grid" id="carb-out-grid">
-        ${['pieno','tre-quarti','meta','un-quarto','riserva'].map(c=>`<button class="carb-btn" id="co-${c}" onclick="selCarb('out','${c}')">${c==='pieno'?'⛽ Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½':c==='un-quarto'?'¼':'⚠ Ris.'}</button>`).join('')}
+        ${['pieno','tre-quarti','meta','un-quarto','riserva'].map(c=>`<button class="carb-btn" id="co-${c}" onclick="selCarb('out','${c}')">${c==='pieno'?'Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½':c==='un-quarto'?'¼':'⚠ Ris.'}</button>`).join('')}
       </div>
       <input type="hidden" id="f-co-carb" value="">
     </div>
@@ -2224,15 +2603,20 @@ function selCarb(dir,val){
   document.getElementById(`f-${prefix}-carb`).value=val;
 }
 async function saveCheckout(noleggioId){
-  const km=parseInt(v('f-co-km'));
-  const carb=v('f-co-carb');
-  if(!km||km<0){toast('KM inizio obbligatori','err');return;}
-  if(!carb){toast('Seleziona livello carburante','err');return;}
-  const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
-  n.km_inizio=km; n.carburante_inizio=carb; n.note_inizio=v('f-co-note');
-  // Aggiorna km veicolo
-  const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
-  closeSheet();showNoleggio(noleggioId);toast('Check-out salvato! 🚗');await syncUp();
+  try{
+    const km=parseInt(v('f-co-km'));
+    const carb=v('f-co-carb');
+    if(!km||km<0){toast('KM inizio obbligatori','err');return;}
+    if(!carb){toast('Seleziona livello carburante','err');return;}
+    const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
+    n.km_inizio=km; n.carburante_inizio=carb; n.note_inizio=v('f-co-note');
+    // Aggiorna km veicolo
+    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
+    closeSheet();showNoleggio(noleggioId);toast('Check-out salvato! 🚗');await syncUp();
+  }catch(err){
+    console.error('[saveCheckout]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* CHECK-IN form (rientro veicolo) */
@@ -2245,7 +2629,7 @@ function bCheckin(body,d){
       </div>
       <div style="padding:8px 0 4px;font-size:12px;font-weight:600;color:var(--label2);text-transform:uppercase;letter-spacing:.05em">Carburante rientro *</div>
       <div class="carb-grid">
-        ${['pieno','tre-quarti','meta','un-quarto','riserva'].map(c=>`<button class="carb-btn" id="ci-${c}" onclick="selCarb('in','${c}')">${c==='pieno'?'⛽ Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½':c==='un-quarto'?'¼':'⚠ Ris.'}</button>`).join('')}
+        ${['pieno','tre-quarti','meta','un-quarto','riserva'].map(c=>`<button class="carb-btn" id="ci-${c}" onclick="selCarb('in','${c}')">${c==='pieno'?'Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½':c==='un-quarto'?'¼':'⚠ Ris.'}</button>`).join('')}
       </div>
       <input type="hidden" id="f-ci-carb" value="">
     </div>
@@ -2259,20 +2643,25 @@ function bCheckin(body,d){
     <button class="ios-btn primary" onclick="saveCheckin('${d?.noleggioId}')" style="margin-top:6px">💾 Salva check-in</button>`;
 }
 async function saveCheckin(noleggioId){
-  const km=parseInt(v('f-ci-km'));
-  const carb=v('f-ci-carb');
-  if(!km||km<0){toast('KM finali obbligatori','err');return;}
-  if(!carb){toast('Seleziona livello carburante','err');return;}
-  const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
-  n.km_fine=km; n.carburante_fine=carb;
-  n.danni_rientro=v('f-ci-danni'); n.extra_costi=parseFloat(v('f-ci-extra'))||0; n.note_fine=v('f-ci-note');
-  // Aggiorna km veicolo
-  const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
-  // Se ci sono danni, registra automaticamente
-  if(n.danni_rientro){
-    DATA.danni.push({id:uid(),vehicle_id:n.vehicle_id,customer_id:n.customer_id,noleggio_id:noleggioId,descrizione:n.danni_rientro,data:new Date().toISOString().split('T')[0],stato:'attivo',created_at:Date.now()});
+  try{
+    const km=parseInt(v('f-ci-km'));
+    const carb=v('f-ci-carb');
+    if(!km||km<0){toast('KM finali obbligatori','err');return;}
+    if(!carb){toast('Seleziona livello carburante','err');return;}
+    const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
+    n.km_fine=km; n.carburante_fine=carb;
+    n.danni_rientro=v('f-ci-danni'); n.extra_costi=parseFloat(v('f-ci-extra'))||0; n.note_fine=v('f-ci-note');
+    // Aggiorna km veicolo
+    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
+    // Se ci sono danni, registra automaticamente
+    if(n.danni_rientro){
+      DATA.danni.push({id:uid(),vehicle_id:n.vehicle_id,customer_id:n.customer_id,noleggio_id:noleggioId,descrizione:n.danni_rientro,data:new Date().toISOString().split('T')[0],stato:'attivo',created_at:Date.now()});
+    }
+    closeSheet();showNoleggio(noleggioId);toast('Check-in salvato! 🏁');await syncUp();
+  }catch(err){
+    console.error('[saveCheckin]',err);
+    toast('Errore: '+err.message,'err');
   }
-  closeSheet();showNoleggio(noleggioId);toast('Check-in salvato! 🏁');await syncUp();
 }
 
 /* VENDITE */
@@ -2280,7 +2669,7 @@ function renderVenditeIn(body){
   const cM=Object.fromEntries(DATA.clienti.map(c=>[c.id,c]));
   const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
   const list=[...DATA.sales].sort((a,b)=>b.created_at-a.created_at);
-  body.innerHTML=`<div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei">💰</div><h3>Nessuna vendita</h3><p>Crea con +</p></div>`:list.map(s=>{const c=cM[s.customer_id]||{},vx=vM[s.vehicle_id]||{};return`<div class="ios-row" onclick="showVendita('${s.id}')"><div class="ios-row-icon" style="background:var(--purple-bg)">💰</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(s.data)}</div></div><div class="ios-row-right"><span class="badge b-purple">venduta</span><span style="font-size:14px;font-weight:600;color:var(--purple)">${fE(s.prezzo_vendita)}</span></div></div>`;}).join('')}</div>`;
+  body.innerHTML=`<div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg></div><h3>Nessuna vendita</h3><p>Crea con +</p></div>`:list.map(s=>{const c=cM[s.customer_id]||{},vx=vM[s.vehicle_id]||{};return`<div class="ios-row" onclick="showVendita('${s.id}')"><div class="ios-row-icon" style="background:var(--purple-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(s.data)}</div></div><div class="ios-row-right"><span class="badge b-purple">venduta</span><span style="font-size:14px;font-weight:600;color:var(--purple)">${fE(s.prezzo_vendita)}</span></div></div>`;}).join('')}</div>`;
 }
 
 function showVendita(id){
@@ -2293,7 +2682,7 @@ function showVendita(id){
   document.getElementById('detail-title').textContent='Contratto Vendita';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">💰</div>
+      <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg></div>
       <div class="hero-name">${vx.marca||'?'} ${vx.modello||''}</div>
       <div class="hero-sub">${nomeAnagrafica(c)} · ${fD(s.data)}</div>
     </div>
@@ -2303,13 +2692,15 @@ function showVendita(id){
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Veicolo</div><div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''} · <span style="font-family:monospace">${vx.targa||'—'}</span></div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data vendita</div><div class="ios-row-title">${fD(s.data)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Prezzo vendita</div><div class="ios-row-title amount-big" style="color:var(--purple)">${fE(s.prezzo_vendita)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Stato incasso</div><div class="ios-row-title" style="color:${s.incassato?'var(--green)':'var(--orange)'}">${s.incassato?'Incassato':'Da incassare'}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Costi sostenuti</div><div class="ios-row-title" style="color:var(--red)">${fE(costi)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricavi noleggi</div><div class="ios-row-title" style="color:var(--green)">${fE(ricNoleggi)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Profitto totale</div><div class="ios-row-title" style="color:${profitto>=0?'var(--green)':'var(--red)'}"><strong>${fE(profitto)}</strong></div></div></div>
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn neutral" onclick="genPdfVendita('${id}')">🖨 Contratto PDF</button>
+      ${!s.incassato?`<button class="ios-btn success" onclick="toggleIncassato('${id}')">Segna come incassato</button>`:`<button class="ios-btn neutral" onclick="toggleIncassato('${id}')">Annulla incasso</button>`}
+      <button class="ios-btn neutral" onclick="genPdfVendita('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Contratto PDF</button>
       <button class="ios-btn danger" onclick="askDel('sale','${id}')">Elimina vendita</button>
     </div>`;
   openDetail();
@@ -2327,7 +2718,7 @@ function renderDdtIn(body){
       <button class="pill ${fDdt==='vendita'?'on':''}" onclick="setFDdt('vendita',this)">Vendita</button>
     </div>
     <div style="height:10px"></div>
-    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei">📋</div><h3>Nessun DDT</h3><p>Crea con +</p></div>`:list.map(d=>{const c=cM[d.customer_id]||{},vx=vM[d.vehicle_id]||{};return`<div class="ios-row" onclick="showDdt('${d.id}')"><div class="ios-row-icon" style="background:${d.tipo==='vendita'?'var(--purple-bg)':'var(--teal-bg)'}">${d.tipo==='vendita'?'💰':'📦'}</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">DDT ${d.tipo} · ${vx.marca||'?'} ${vx.modello||''} · ${fD(d.data)}</div></div><span class="badge ${d.tipo==='vendita'?'b-purple':'b-teal'}">${d.tipo}</span></div>`;}).join('')}</div>`;
+    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div><h3>Nessun DDT</h3><p>Crea con +</p></div>`:list.map(d=>{const c=cM[d.customer_id]||{},vx=vM[d.vehicle_id]||{};return`<div class="ios-row" onclick="showDdt('${d.id}')"><div class="ios-row-icon" style="background:${d.tipo==='vendita'?'var(--purple-bg)':'var(--teal-bg)'}">${d.tipo==='vendita'?'💰':'📦'}</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">DDT ${d.tipo} · ${vx.marca||'?'} ${vx.modello||''} · ${fD(d.data)}</div></div><span class="badge ${d.tipo==='vendita'?'b-purple':'b-teal'}">${d.tipo}</span></div>`;}).join('')}</div>`;
 }
 function setFDdt(v,btn){document.querySelectorAll('#docs-body .filter-pills .pill').forEach(p=>p.classList.remove('on'));btn.classList.add('on');fDdt=v;renderDocs();}
 
@@ -2335,7 +2726,7 @@ function showDdt(id){
   const d=DATA.ddt.find(x=>x.id===id);if(!d)return;
   const c=DATA.clienti.find(x=>x.id===d.customer_id)||{};
   const vx=DATA.veicoli.find(x=>x.id===d.vehicle_id)||{};
-  const carbLabels={'pieno':'⛽ Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'¼','riserva':'⚠ Riserva'};
+  const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'¼','riserva':'Riserva'};
   document.getElementById('detail-title').textContent=`DDT ${d.tipo}`;
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
@@ -2360,7 +2751,7 @@ function showDdt(id){
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn neutral" onclick="genPdfDdt('${id}')">🖨 Stampa DDT</button>
+      <button class="ios-btn neutral" onclick="genPdfDdt('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Stampa DDT</button>
       <button class="ios-btn danger" onclick="askDel('ddt','${id}')">Elimina DDT</button>
     </div>`;
   openDetail();
@@ -2472,14 +2863,14 @@ function renderCostiIn(body){
   const vM=Object.fromEntries(DATA.veicoli.map(v=>[v.id,v]));
   const sM=Object.fromEntries(DATA.suppliers.map(s=>[s.id,s]));
   const list=[...DATA.expenses].sort((a,b)=>b.created_at-a.created_at);
-  const periodLabel={'mensile':'🔄 Mensile','annuale':'📆 Annuale','una-tantum':''};
+  const periodLabel={'mensile':'Mensile','annuale':'Annuale','una-tantum':''};
   body.innerHTML=`<div class="ios-list">${!list.length
-    ?`<div class="empty-state" style="padding:40px"><div class="ei">🔧</div><h3>Nessun costo</h3><p>Aggiungi con +</p></div>`
+    ?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><h3>Nessun costo</h3><p>Aggiungi con +</p></div>`
     :list.map(e=>{
       const vx=vM[e.vehicle_id]||{},sup=sM[e.fornitore_id]||{};
       const pl=periodLabel[e.periodicita]||'';
       return`<div class="ios-row" onclick="showExpense('${e.id}')">
-        <div class="ios-row-icon" style="background:${e.stato==='in corso'?'var(--orange-bg)':'var(--green-bg)'}">🔧</div>
+        <div class="ios-row-icon" style="background:${e.stato==='in corso'?'var(--orange-bg)':'var(--green-bg)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
         <div class="ios-row-body">
           <div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''} · ${e.tipo}${pl?' · '+pl:''}</div>
           <div class="ios-row-sub">${e.descrizione||'—'}${sup.nome?' · '+sup.nome:''} · ${fD(e.data)}</div>
@@ -2497,15 +2888,16 @@ function showExpense(id){
   const vx=DATA.veicoli.find(x=>x.id===e.vehicle_id)||{};
   const sup=DATA.suppliers.find(x=>x.id===e.fornitore_id)||{};
   const nextDue=nextDueDate(e.data,e.periodicita);
-  const periodLabel={'mensile':'🔄 Mensile','annuale':'📆 Annuale','una-tantum':'Una tantum'};
+  const periodLabel={'mensile':'Mensile','annuale':'Annuale','una-tantum':'Una tantum'};
   document.getElementById('detail-title').textContent='Costo';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">🔧</div>
+      <div style="margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="46" height="46"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div>
       <div class="hero-name">${e.tipo||'Costo'}</div>
-      <div class="hero-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(e.data)}</div>
+      <div class="hero-sub">${vx.marca?vx.marca+' '+vx.modello+' · ':''} ${fD(e.data)}</div>
       <div style="margin-top:8px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
         <span class="badge ${e.stato==='in corso'?'b-orange':'b-green'}">${e.stato||'—'}</span>
+        <span class="badge ${e.pagato?'b-green':'b-orange'}">${e.pagato?'Pagato':'Da pagare'}</span>
         ${e.periodicita&&e.periodicita!=='una-tantum'?`<span class="badge b-blue">${periodLabel[e.periodicita]||e.periodicita}</span>`:''}
       </div>
     </div>
@@ -2513,14 +2905,19 @@ function showExpense(id){
       <div class="ios-list">
         ${e.descrizione?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Descrizione</div><div class="ios-row-title">${e.descrizione}</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo</div><div class="ios-row-title" style="color:var(--orange);font-weight:700">${fE(e.costo)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Pagamento</div><div class="ios-row-title" style="color:${e.pagato?'var(--green)':'var(--orange)'}">${e.pagato?'Pagato':'Da pagare'}</div></div></div>
         ${sup.nome?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Fornitore</div><div class="ios-row-title">${sup.nome}${sup.tipo?' · '+sup.tipo:''}</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Periodicità</div><div class="ios-row-title">${periodLabel[e.periodicita]||'Una tantum'}</div></div></div>
         ${nextDue?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Prossima scadenza</div><div class="ios-row-title" style="color:var(--orange)">${fD(nextDue)}</div></div></div>`:''}
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn primary" onclick="editExpense('${id}')">✏️ Modifica</button>
-      ${e.stato==='in corso'?`<button class="ios-btn success" onclick="completaExpense('${id}')">✅ Segna completato</button>`:''}
+      ${!e.pagato
+        ?`<button class="ios-btn success" onclick="togglePagato('${id}')">Segna come pagato</button>`
+        :`<button class="ios-btn neutral" onclick="togglePagato('${id}')">Annulla pagamento</button>`
+      }
+      <button class="ios-btn primary" onclick="editExpense('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
+      ${e.stato==='in corso'?`<button class="ios-btn success" onclick="completaExpense('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Completata</button>`:''}
       <button class="ios-btn danger" onclick="askDel('expense','${id}')">Elimina</button>
     </div>`;
   openDetail();
@@ -2528,15 +2925,20 @@ function showExpense(id){
 function editExpense(id){closeDetail();openSheet('expense',DATA.expenses.find(x=>x.id===id));}
 
 async function completaExpense(id){
-  const e=DATA.expenses.find(x=>x.id===id);if(!e)return;
-  e.stato='completato';
-  // ripristina veicolo se era in manutenzione per questo costo
-  const vx=DATA.veicoli.find(x=>x.id===e.vehicle_id);
-  if(vx&&vx.stato==='manutenzione'){
-    const altriInCorso=DATA.expenses.filter(x=>x.vehicle_id===vx.id&&x.id!==id&&x.stato==='in corso');
-    if(!altriInCorso.length)vx.stato='disponibile';
+  try{
+    const e=DATA.expenses.find(x=>x.id===id);if(!e)return;
+    e.stato='completato';
+    // ripristina veicolo se era in manutenzione per questo costo
+    const vx=DATA.veicoli.find(x=>x.id===e.vehicle_id);
+    if(vx&&vx.stato==='manutenzione'){
+      const altriInCorso=DATA.expenses.filter(x=>x.vehicle_id===vx.id&&x.id!==id&&x.stato==='in corso');
+      if(!altriInCorso.length)vx.stato='disponibile';
+    }
+    closeDetail();renderAll();renderGest();toast('Manutenzione completata! ✅');await syncUp();
+  }catch(err){
+    console.error('[completaExpense]',err);
+    toast('Errore: '+err.message,'err');
   }
-  closeDetail();renderAll();renderGest();toast('Manutenzione completata! ✅');await syncUp();
 }
 
 /* FORNITORI */
@@ -2583,10 +2985,10 @@ function showFornitore(id){
       </div>
     </div>
     <div class="list-section"><div class="list-header">Interventi (${costi.length})</div>
-      <div class="ios-list">${costi.length?costi.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)">🔧</div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)}</div></div><span style="color:var(--orange);font-weight:600">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun intervento</p></div>'}</div>
+      <div class="ios-list">${costi.length?costi.map(e=>`<div class="ios-row"><div class="ios-row-icon" style="background:var(--orange-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${e.descrizione||e.tipo}</div><div class="ios-row-sub">${fD(e.data)}</div></div><span style="color:var(--orange);font-weight:600">${fE(e.costo)}</span></div>`).join(''):'<div class="empty-state" style="padding:20px"><p>Nessun intervento</p></div>'}</div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
-      <button class="ios-btn primary" onclick="editFornitore('${id}')">✏️ Modifica</button>
+      <button class="ios-btn primary" onclick="editFornitore('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
       <button class="ios-btn danger" onclick="askDel('fornitore','${id}')">Elimina fornitore</button>
     </div>`;
   openDetail();
@@ -2596,7 +2998,7 @@ function editFornitore(id){closeDetail();openSheet('fornitore',DATA.suppliers.fi
 /* REPORT */
 function renderReportIn(body){
   const veicoli=DATA.veicoli;
-  if(!veicoli.length){body.innerHTML=`<div class="empty-state"><div class="ei">📊</div><h3>Nessun veicolo</h3></div>`;return;}
+  if(!veicoli.length){body.innerHTML=`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><h3>Nessun veicolo</h3></div>`;return;}
 
   const rows=veicoli.map(vx=>{
     const costi=DATA.expenses.filter(e=>e.vehicle_id===vx.id).reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
@@ -2735,12 +3137,12 @@ function bCliente(body,d){
   body.innerHTML=`
     <div class="ana-toggle">
       <button class="ana-btn${tipo==='privato'?' sel':''}" id="ana-privato" onclick="selAnaTipo('privato')">
-        <span class="ana-icon">👤</span>
+        <span class="ana-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
         <div class="ana-lbl">Privato</div>
         <div class="ana-sub">Persona fisica</div>
       </button>
       <button class="ana-btn${tipo==='azienda'?' sel':''}" id="ana-azienda" onclick="selAnaTipo('azienda')">
-        <span class="ana-icon">🏢</span>
+        <span class="ana-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg></span>
         <div class="ana-lbl">Azienda</div>
         <div class="ana-sub">Partita IVA</div>
       </button>
@@ -2848,25 +3250,30 @@ function aggiornaCF(){
 }
 
 async function saveCliente(){
-  const tipo=v('f-ana-tipo')||'privato';
-  const telefono=v('f-tel');
-  if(!telefono){toast('Telefono obbligatorio','err');return;}
-  let r={id:curForm.data?.id||uid(),tipo_anagrafica:tipo,telefono,email:v('f-email'),created_at:curForm.data?.created_at||Date.now()};
-  if(tipo==='privato'){
-    const nome=v('f-nome'),cognome=v('f-cognome'),cf=(v('f-cf')||'').toUpperCase();
-    if(!nome||!cognome){toast('Nome e cognome obbligatori','err');return;}
-    if(!cf){toast('Codice fiscale obbligatorio per privati','err');return;}
-    const luogoNascita=document.getElementById('f-ln')?.value||'';
-    const comuneNascita=document.getElementById('f-cn')?.value||'';
-    const provinciaNascita=v('f-provincia')||'';
-    Object.assign(r,{nome,cognome,sesso:v('f-sesso'),data_nascita:v('f-dn'),luogo_nascita:luogoNascita,comune_nascita:comuneNascita,provincia_nascita:provinciaNascita,codice_fiscale:cf,indirizzo:v('f-indirizzo')});
-  } else {
-    const rs=v('f-rag-soc'),piva=v('f-piva');
-    if(!rs){toast('Ragione sociale obbligatoria','err');return;}
-    if(!piva){toast('Partita IVA obbligatoria','err');return;}
-    Object.assign(r,{ragione_sociale:rs,partita_iva:piva,codice_fiscale:(v('f-cf-az')||'').toUpperCase(),indirizzo:v('f-indirizzo-az'),referente:v('f-referente')});
+  try{
+    const tipo=v('f-ana-tipo')||'privato';
+    const telefono=v('f-tel');
+    if(!telefono){toast('Telefono obbligatorio','err');return;}
+    let r={id:curForm.data?.id||uid(),tipo_anagrafica:tipo,telefono,email:v('f-email'),created_at:curForm.data?.created_at||Date.now()};
+    if(tipo==='privato'){
+      const nome=v('f-nome'),cognome=v('f-cognome'),cf=(v('f-cf')||'').toUpperCase();
+      if(!nome||!cognome){toast('Nome e cognome obbligatori','err');return;}
+      if(!cf){toast('Codice fiscale obbligatorio per privati','err');return;}
+      const luogoNascita=document.getElementById('f-ln')?.value||'';
+      const comuneNascita=document.getElementById('f-cn')?.value||'';
+      const provinciaNascita=v('f-provincia')||'';
+      Object.assign(r,{nome,cognome,sesso:v('f-sesso'),data_nascita:v('f-dn'),luogo_nascita:luogoNascita,comune_nascita:comuneNascita,provincia_nascita:provinciaNascita,codice_fiscale:cf,indirizzo:v('f-indirizzo')});
+    } else {
+      const rs=v('f-rag-soc'),piva=v('f-piva');
+      if(!rs){toast('Ragione sociale obbligatoria','err');return;}
+      if(!piva){toast('Partita IVA obbligatoria','err');return;}
+      Object.assign(r,{ragione_sociale:rs,partita_iva:piva,codice_fiscale:(v('f-cf-az')||'').toUpperCase(),indirizzo:v('f-indirizzo-az'),referente:v('f-referente')});
+    }
+    upsert('clienti',r);closeSheet();renderAll();toast('Cliente salvato!');await syncUp();
+  }catch(err){
+    console.error('[saveCliente]',err);
+    toast('Errore: '+err.message,'err');
   }
-  upsert('clienti',r);closeSheet();renderAll();toast('Cliente salvato!');await syncUp();
 }
 
 /* ── VEICOLO FORM ── */
@@ -2898,32 +3305,37 @@ function bVeicolo(body,d){
     <button class="ios-btn primary" onclick="saveVeicolo()" style="margin-top:6px">${isEdit?'Aggiorna Veicolo':'Salva Veicolo'}</button>`;
 }
 async function saveVeicolo(){
-  const targa=v('f-targa').toUpperCase().trim();
-  const marca=v('f-marca').trim();
-  const modello=v('f-modello').trim();
-  const anno=v('f-anno').trim();
-  const dest=v('f-dest');
-  if(!targa||!marca||!modello||!anno){toast('Targa, marca, modello, anno obbligatori','err');return;}
-  if(!dest){toast('Seleziona destinazione (noleggio o vendita)','err');return;}
-  const existingId=curForm?.data?.id||null;
-  if(DATA.veicoli.find(x=>x.targa===targa&&x.id!==existingId)){toast('Targa già presente!','err');return;}
-  const r={
-    id:existingId||uid(),
-    targa,marca,modello,
-    anno:parseInt(anno),
-    km:parseInt(v('f-km'))||0,
-    colore:v('f-colore'),
-    carburante:v('f-carb'),
-    destinazione:dest,
-    prezzo_acquisto:parseFloat(v('f-pacq'))||0,
-    stato:v('f-stato')||'disponibile',
-    created_at:curForm?.data?.created_at||Date.now()
-  };
-  upsert('veicoli',r);
-  closeSheet();
-  renderAll();
-  toast(existingId?'Veicolo aggiornato! ✅':'Veicolo salvato! 🚗');
-  await syncUp();
+  try{
+    const targa=v('f-targa').toUpperCase().trim();
+    const marca=v('f-marca').trim();
+    const modello=v('f-modello').trim();
+    const anno=v('f-anno').trim();
+    const dest=v('f-dest');
+    if(!targa||!marca||!modello||!anno){toast('Targa, marca, modello, anno obbligatori','err');return;}
+    if(!dest){toast('Seleziona destinazione (noleggio o vendita)','err');return;}
+    const existingId=curForm?.data?.id||null;
+    if(DATA.veicoli.find(x=>x.targa===targa&&x.id!==existingId)){toast('Targa già presente!','err');return;}
+    const r={
+      id:existingId||uid(),
+      targa,marca,modello,
+      anno:parseInt(anno),
+      km:parseInt(v('f-km'))||0,
+      colore:v('f-colore'),
+      carburante:v('f-carb'),
+      destinazione:dest,
+      prezzo_acquisto:parseFloat(v('f-pacq'))||0,
+      stato:v('f-stato')||'disponibile',
+      created_at:curForm?.data?.created_at||Date.now()
+    };
+    upsert('veicoli',r);
+    closeSheet();
+    renderAll();
+    toast(existingId?'Veicolo aggiornato! ✅':'Veicolo salvato! 🚗');
+    await syncUp();
+  }catch(err){
+    console.error('[saveVeicolo]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ── NOLEGGIO FORM ── */
@@ -2969,7 +3381,7 @@ function bNoleggio(body){
     <div class="fsec"><div class="fsec-title">KM inclusi</div>
       <div class="km-toggle">
         <button class="km-opt sel" id="kmo-illimitati" onclick="selKmOpt('illimitati')">∞<br><span style="font-size:10px">Illimitati</span></button>
-        <button class="km-opt" id="kmo-giornalieri" onclick="selKmOpt('giornalieri')">📅<br><span style="font-size:10px">Al giorno</span></button>
+        <button class="km-opt" id="kmo-giornalieri" onclick="selKmOpt('giornalieri')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><br><span style="font-size:10px">Al giorno</span></button>
         <button class="km-opt" id="kmo-totali" onclick="selKmOpt('totali')">📍<br><span style="font-size:10px">Totali</span></button>
       </div>
       <input type="hidden" id="f-km-tipo" value="illimitati">
@@ -3013,40 +3425,46 @@ function aggiornaDfMin(){
 }
 
 async function saveNoleggio(){
-  const cid=v('f-cid'),vid=v('f-vid'),di=v('f-di'),df=v('f-df');
-  const mode=v('f-prezzo-mode')||'forfait';
-  if(!cid){toast('Seleziona cliente','err');return;}
-  if(!vid){toast('Seleziona veicolo','err');return;}
-  if(!di){toast('Data inizio obbligatoria','err');return;}
-  if(!df){toast('Data fine obbligatoria','err');return;}
-  if(df<di){toast('La data fine non può essere precedente alla data inizio','err');return;}
-  const giorni=calcolaGiorni(di,df);
-  let pz,prezzoGiornaliero=null;
-  if(mode==='giorno'){
-    prezzoGiornaliero=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
-    if(!prezzoGiornaliero||prezzoGiornaliero<=0){toast('Inserisci il prezzo giornaliero','err');return;}
-    pz=Math.round(prezzoGiornaliero*giorni*100)/100;
-  } else {
-    pz=parseFloat(v('f-prezzo'));
-    if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
+  try{
+    const cid=v('f-cid'),vid=v('f-vid'),di=v('f-di'),df=v('f-df');
+    const mode=v('f-prezzo-mode')||'forfait';
+    if(!cid){toast('Seleziona cliente','err');return;}
+    if(!vid){toast('Seleziona veicolo','err');return;}
+    if(!di){toast('Data inizio obbligatoria','err');return;}
+    if(!df){toast('Data fine obbligatoria','err');return;}
+    if(df<di){toast('La data fine non può essere precedente alla data inizio','err');return;}
+    const giorni=calcolaGiorni(di,df);
+    let pz,prezzoGiornaliero=null;
+    if(mode==='giorno'){
+      prezzoGiornaliero=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
+      if(!prezzoGiornaliero||prezzoGiornaliero<=0){toast('Inserisci il prezzo giornaliero','err');return;}
+      pz=Math.round(prezzoGiornaliero*giorni*100)/100;
+    } else {
+      pz=parseFloat(v('f-prezzo'));
+      if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
+    }
+    const kmTipo=v('f-km-tipo');
+    const kmNum=parseInt(v('f-km-num'))||0;
+    if(kmTipo!=='illimitati'&&kmNum<=0){toast('Inserisci i KM inclusi','err');return;}
+    const noleggio={
+      id:uid(),customer_id:cid,vehicle_id:vid,
+      data_inizio:di,data_fine:df,
+      prezzo:pz,
+      modalita_prezzo:mode,
+      prezzo_giornaliero:prezzoGiornaliero,
+      stato:'attivo',
+      incassato:false,
+      km_tipo:kmTipo,
+      km_inclusi:kmTipo==='illimitati'?null:kmNum,
+      created_at:Date.now()
+    };
+    DATA.noleggi.push(noleggio);
+    const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='noleggiato';
+    closeSheet();renderAll();renderDocs();toast('Noleggio creato!');await syncUp();
+  }catch(err){
+    console.error('[saveNoleggio]',err);
+    toast('Errore: '+err.message,'err');
   }
-  const kmTipo=v('f-km-tipo');
-  const kmNum=parseInt(v('f-km-num'))||0;
-  if(kmTipo!=='illimitati'&&kmNum<=0){toast('Inserisci i KM inclusi','err');return;}
-  const noleggio={
-    id:uid(),customer_id:cid,vehicle_id:vid,
-    data_inizio:di,data_fine:df,
-    prezzo:pz,
-    modalita_prezzo:mode,
-    prezzo_giornaliero:prezzoGiornaliero,
-    stato:'attivo',
-    km_tipo:kmTipo,
-    km_inclusi:kmTipo==='illimitati'?null:kmNum,
-    created_at:Date.now()
-  };
-  DATA.noleggi.push(noleggio);
-  const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='noleggiato';
-  closeSheet();renderAll();renderDocs();toast('Noleggio creato! 🎉');await syncUp();
 }
 
 /* ── VENDITA FORM ── */
@@ -3061,28 +3479,40 @@ function bVendita(body,d){
         <div class="ios-f"><label>Acquirente *</label><select id="f-cid"><option value="">Seleziona cliente…</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
         <div class="ios-f"><label>Veicolo *</label><select id="f-vid"><option value="">Seleziona veicolo…</option>${dispVendita.map(x=>`<option value="${x.id}"${x.id===presel?' selected':''}>${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}</select></div>
       </div>
-      ${!dispVendita.length?`<p style="font-size:13px;color:var(--orange);padding:4px">⚠️ Nessun veicolo in vendita disponibile</p>`:''}
+      ${!dispVendita.length?`<p style="font-size:13px;color:var(--orange);padding:4px">Nessun veicolo in vendita disponibile</p>`:''}
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
         <div class="ios-f"><label>Data vendita *</label>${dateSelectHTML('f-dataV', today)}</div>
+        <div class="ios-f"><label>Stato incasso</label>
+          <select id="f-incassato" style="text-align:right;text-align-last:right">
+            <option value="no">Da incassare</option>
+            <option value="si">Incassato</option>
+          </select>
+        </div>
       </div>
     </div>
     <button class="ios-btn primary" onclick="saveVendita()" style="margin-top:6px" ${!dispVendita.length?'disabled':''}>Registra Vendita</button>`;
 }
 async function saveVendita(){
-  const cid=v('f-cid'),vid=v('f-vid'),pz=parseFloat(v('f-prezzoV')),data=v('f-dataV');
-  if(!cid){toast('Seleziona acquirente','err');return;}
-  if(!vid){toast('Seleziona veicolo','err');return;}
-  if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
-  if(!data){toast('Data obbligatoria','err');return;}
-  const costi=DATA.expenses.filter(e=>e.vehicle_id===vid).reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
-  const ricNol=DATA.noleggi.filter(n=>n.vehicle_id===vid&&n.stato==='completato').reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
-  const profitto=pz+ricNol-costi;
-  DATA.sales.push({id:uid(),vehicle_id:vid,customer_id:cid,prezzo_vendita:pz,data,profitto,created_at:Date.now()});
-  const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='venduto';
-  closeSheet();renderAll();renderDocs();toast('Vendita registrata! 💰');await syncUp();
+  try{
+    const cid=v('f-cid'),vid=v('f-vid'),pz=parseFloat(v('f-prezzoV')),data=v('f-dataV');
+    if(!cid){toast('Seleziona acquirente','err');return;}
+    if(!vid){toast('Seleziona veicolo','err');return;}
+    if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
+    if(!data){toast('Data obbligatoria','err');return;}
+    const incassato=document.getElementById('f-incassato')?.value==='si';
+    const costi=DATA.expenses.filter(e=>e.vehicle_id===vid).reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
+    const ricNol=DATA.noleggi.filter(n=>n.vehicle_id===vid&&n.stato==='completato').reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
+    const profitto=pz+ricNol-costi;
+    DATA.sales.push({id:uid(),vehicle_id:vid,customer_id:cid,prezzo_vendita:pz,data,profitto,incassato,created_at:Date.now()});
+    const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='venduto';
+    closeSheet();renderAll();renderDocs();toast('Vendita registrata!');await syncUp();
+  }catch(err){
+    console.error('[saveVendita]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ── DDT FORM ── */
@@ -3094,7 +3524,7 @@ function bDdt(body,d){
   const nowTime=new Date().toTimeString().slice(0,5);
   const num='DDT-'+(Date.now()%100000).toString().padStart(5,'0');
   const carbOpts=['pieno','tre-quarti','meta','un-quarto','riserva'];
-  const carbLabel=c=>c==='pieno'?'⛽ Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½ Metà':c==='un-quarto'?'¼':c==='riserva'?'⚠ Riserva':c;
+  const carbLabel=c=>c==='pieno'?'Pieno':c==='tre-quarti'?'3/4':c==='meta'?'½ Metà':c==='un-quarto'?'¼':c==='riserva'?'Riserva':c;
   const preCid=d?.customer_id||'';
   const preVid=d?.vehicle_id||'';
   const preDataCons=d?.data_consegna||today;
@@ -3105,8 +3535,8 @@ function bDdt(body,d){
       📦 DDT pre-compilato dal contratto — verifica e conferma i dati</div>`:''}
     <div class="fsec"><div class="fsec-title">Tipo</div>
       <div class="ddt-sel">
-        <div class="ddt-card sel" id="ddt-t-noleggio" onclick="selDdtType('noleggio')"><div class="ddt-card-icon">📦</div><div class="ddt-card-lbl">Noleggio</div><div class="ddt-card-sub">Consegna veicolo</div></div>
-        <div class="ddt-card" id="ddt-t-vendita" onclick="selDdtType('vendita')"><div class="ddt-card-icon">💰</div><div class="ddt-card-lbl">Vendita</div><div class="ddt-card-sub">Trasferimento</div></div>
+        <div class="ddt-card sel" id="ddt-t-noleggio" onclick="selDdtType('noleggio')"><div class="ddt-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m12 3-8 4.5v9L12 21l8-4.5v-9L12 3z"/><line x1="12" y1="12" x2="12" y2="21"/><path d="m12 12 8-4.5"/><path d="m12 12-8-4.5"/></svg></div><div class="ddt-card-lbl">Noleggio</div><div class="ddt-card-sub">Consegna veicolo</div></div>
+        <div class="ddt-card" id="ddt-t-vendita" onclick="selDdtType('vendita')"><div class="ddt-card-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M4 10h12"/><path d="M4 14h12"/><path d="M19 6a7.7 7.7 0 0 0-5.2-2A7.9 7.9 0 0 0 6 20a7.7 7.7 0 0 0 7.8 2"/></svg></div><div class="ddt-card-lbl">Vendita</div><div class="ddt-card-sub">Trasferimento</div></div>
       </div>
       <input type="hidden" id="f-ddt-tipo" value="noleggio">
     </div>
@@ -3150,24 +3580,29 @@ function selDdtCarb(c){
   document.getElementById('f-ddt-carb').value=c;
 }
 async function saveDdt(){
-  const cid=v('f-ddt-cid'),vid=v('f-ddt-vid'),data=v('f-ddt-data'),tipo=v('f-ddt-tipo');
-  const dataConsegna=v('f-ddt-data-cons'),oraConsegna=v('f-ddt-ora-cons'),carburante=v('f-ddt-carb');
-  const noleggioId=document.getElementById('f-ddt-noleggio-id')?.value||'';
-  if(!cid||!vid||!data){toast('Destinatario, veicolo e data obbligatori','err');return;}
-  if(!dataConsegna||!oraConsegna){toast('Data e ora consegna obbligatorie','err');return;}
-  if(!carburante){toast('Seleziona il livello carburante','err');return;}
-  const vx=DATA.veicoli.find(x=>x.id===vid);
-  DATA.ddt.push({
-    id:uid(),tipo,numero:v('f-ddt-num'),
-    customer_id:cid,vehicle_id:vid,
-    noleggio_id:noleggioId||null,  // collegamento al contratto
-    data,data_consegna:dataConsegna,ora_consegna:oraConsegna,
-    carburante_consegna:carburante,
-    causale:v('f-ddt-causale'),luogo_consegna:v('f-ddt-luogo'),
-    vettore:v('f-ddt-vettore'),km_consegna:vx?.km||0,
-    importo:parseFloat(v('f-ddt-importo'))||0,created_at:Date.now()
-  });
-  closeSheet();renderDocs();toast('DDT creato! 📋');await syncUp();
+  try{
+    const cid=v('f-ddt-cid'),vid=v('f-ddt-vid'),data=v('f-ddt-data'),tipo=v('f-ddt-tipo');
+    const dataConsegna=v('f-ddt-data-cons'),oraConsegna=v('f-ddt-ora-cons'),carburante=v('f-ddt-carb');
+    const noleggioId=document.getElementById('f-ddt-noleggio-id')?.value||'';
+    if(!cid||!vid||!data){toast('Destinatario, veicolo e data obbligatori','err');return;}
+    if(!dataConsegna||!oraConsegna){toast('Data e ora consegna obbligatorie','err');return;}
+    if(!carburante){toast('Seleziona il livello carburante','err');return;}
+    const vx=DATA.veicoli.find(x=>x.id===vid);
+    DATA.ddt.push({
+      id:uid(),tipo,numero:v('f-ddt-num'),
+      customer_id:cid,vehicle_id:vid,
+      noleggio_id:noleggioId||null,  // collegamento al contratto
+      data,data_consegna:dataConsegna,ora_consegna:oraConsegna,
+      carburante_consegna:carburante,
+      causale:v('f-ddt-causale'),luogo_consegna:v('f-ddt-luogo'),
+      vettore:v('f-ddt-vettore'),km_consegna:vx?.km||0,
+      importo:parseFloat(v('f-ddt-importo'))||0,created_at:Date.now()
+    });
+    closeSheet();renderDocs();toast('DDT creato!');await syncUp();
+  }catch(err){
+    console.error('[saveDdt]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ── COSTO/EXPENSE FORM ── */
@@ -3212,7 +3647,7 @@ function bExpense(body,d){
           </select>
         </div>
       </div>
-      ${isVenduto?`<p style="font-size:12px;color:var(--orange);padding:4px 2px">⚠ Veicolo venduto: sono consentiti solo costi di tipo <strong>Garanzia</strong>.</p>`:''}
+      ${isVenduto?`<p style="font-size:12px;color:var(--orange);padding:4px 2px">Veicolo venduto: sono consentiti solo costi di tipo <strong>Garanzia</strong>.</p>`:''}
     </div>
     <div class="fsec"><div class="fsec-title">Tipo e stato</div>
       <div class="ios-fg" id="f-exp-tipo-wrap">
@@ -3274,6 +3709,16 @@ function bExpense(body,d){
       </div>
       <p style="font-size:11px;color:var(--label3);padding:4px 2px">Collega la garanzia al cliente e al contratto di vendita per tracciabilità completa.</p>
     </div>
+    <div class="fsec"><div class="fsec-title">Stato pagamento</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Pagato</label>
+          <select id="f-exp-pagato" style="text-align:right;text-align-last:right">
+            <option value="no"${!d?.pagato?' selected':''}>Da pagare</option>
+            <option value="si"${d?.pagato?' selected':''}>Pagato</option>
+          </select>
+        </div>
+      </div>
+    </div>
     <button class="ios-btn primary" onclick="saveExpense()" style="margin-top:6px">${d?.id?'Aggiorna Costo':'Aggiungi Costo'}</button>`;
 
   // Dopo il render: se veicolo venduto o tipo pre-impostato a garanzia,
@@ -3313,43 +3758,51 @@ function onExpTipoChange(tipo){
   if(sec)sec.style.display=tipo==='garanzia'?'block':'none';
 }
 async function saveExpense(){
-  const vid=v('f-exp-vid'),tipo=v('f-exp-tipo'),costo=parseFloat(v('f-exp-costo')),data=v('f-exp-data'),stato=v('f-exp-stato');
-  if(!vid){toast('Seleziona veicolo','err');return;}
-  if(!tipo){toast('Seleziona tipo','err');return;}
-  if(!costo||costo<=0){toast('Costo non valido','err');return;}
-  if(!data){toast('Data obbligatoria','err');return;}
+  try{
+    const vid=v('f-exp-vid'),tipo=v('f-exp-tipo'),costo=parseFloat(v('f-exp-costo')),data=v('f-exp-data'),stato=v('f-exp-stato');
+    if(!vid){toast('Seleziona veicolo','err');return;}
+    if(!tipo){toast('Seleziona tipo','err');return;}
+    if(!costo||costo<=0){toast('Costo non valido','err');return;}
+    if(!data){toast('Data obbligatoria','err');return;}
 
-  // Validazione: veicolo venduto può avere SOLO garanzia
-  const vx=DATA.veicoli.find(x=>x.id===vid);
-  const tipiStandard=['manutenzione','assicurazione','bollo','riparazione','revisione','altro'];
-  if(vx?.stato==='venduto'&&tipiStandard.includes(tipo)){
-    toast('Veicolo venduto: sono consentiti solo costi di tipo Garanzia','err');return;
+    // Validazione: veicolo venduto può avere SOLO garanzia
+    const vx=DATA.veicoli.find(x=>x.id===vid);
+    const tipiStandard=['manutenzione','assicurazione','bollo','riparazione','revisione','altro'];
+    if(vx?.stato==='venduto'&&tipiStandard.includes(tipo)){
+      toast('Veicolo venduto: sono consentiti solo costi di tipo Garanzia','err');return;
+    }
+
+    const r={
+      id:curForm.data?.id||uid(),
+      vehicle_id:vid,tipo,
+      descrizione:v('f-exp-desc'),costo,data,stato,
+      pagato: document.getElementById('f-exp-pagato')?.value==='si',
+      fornitore_id:v('f-exp-sup'),
+      periodicita:v('f-exp-period')||'una-tantum',
+      created_at:curForm.data?.created_at||Date.now()
+    };
+
+    // Salva campi garanzia se tipo = garanzia
+    if(tipo==='garanzia'){
+      r.garanzia_cliente_id=document.getElementById('f-exp-cliente')?.value||'';
+      r.garanzia_sale_id=document.getElementById('f-exp-sale')?.value||'';
+      r.garanzia_scadenza=document.getElementById('f-exp-garanzia-scad')?.value||'';
+    }
+
+    upsert('expenses',r);
+
+    // Metti in manutenzione solo per tipi che lo richiedono (non venduto, non garanzia)
+    if(stato==='in corso'&&['manutenzione','riparazione'].includes(tipo)){
+      if(vx&&vx.stato==='disponibile')vx.stato='manutenzione';
+    }
+
+    closeSheet();renderAll();renderGest();
+    if(document.getElementById('pg-costi')?.classList.contains('active'))renderCostiCentralizzati();
+    toast('Costo salvato!');await syncUp();
+  }catch(err){
+    console.error('[saveExpense]',err);
+    toast('Errore: '+err.message,'err');
   }
-
-  const r={
-    id:curForm.data?.id||uid(),
-    vehicle_id:vid,tipo,
-    descrizione:v('f-exp-desc'),costo,data,stato,
-    fornitore_id:v('f-exp-sup'),
-    periodicita:v('f-exp-period')||'una-tantum',
-    created_at:curForm.data?.created_at||Date.now()
-  };
-
-  // Salva campi garanzia se tipo = garanzia
-  if(tipo==='garanzia'){
-    r.garanzia_cliente_id=document.getElementById('f-exp-cliente')?.value||'';
-    r.garanzia_sale_id=document.getElementById('f-exp-sale')?.value||'';
-    r.garanzia_scadenza=document.getElementById('f-exp-garanzia-scad')?.value||'';
-  }
-
-  upsert('expenses',r);
-
-  // Metti in manutenzione solo per tipi che lo richiedono (non venduto, non garanzia)
-  if(stato==='in corso'&&['manutenzione','riparazione'].includes(tipo)){
-    if(vx&&vx.stato==='disponibile')vx.stato='manutenzione';
-  }
-
-  closeSheet();renderAll();renderGest();toast('Costo salvato!');await syncUp();
 }
 
 /* ── FORNITORE FORM ── */
@@ -3358,12 +3811,12 @@ function bFornitore(body,d){
   body.innerHTML=`
     <div class="ana-toggle">
       <button class="ana-btn${tipo==='privato'?' sel':''}" id="sup-privato" onclick="selSupTipo('privato')">
-        <span class="ana-icon">👤</span>
+        <span class="ana-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg></span>
         <div class="ana-lbl">Privato</div>
         <div class="ana-sub">Artigiano / persona</div>
       </button>
       <button class="ana-btn${tipo==='azienda'?' sel':''}" id="sup-azienda" onclick="selSupTipo('azienda')">
-        <span class="ana-icon">🏢</span>
+        <span class="ana-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg></span>
         <div class="ana-lbl">Azienda</div>
         <div class="ana-sub">Partita IVA</div>
       </button>
@@ -3410,19 +3863,24 @@ function selSupTipo(tipo){
 }
 
 async function saveFornitore(){
-  const tipo=v('f-sup-tipo-ana')||'privato';
-  let r={id:curForm.data?.id||uid(),tipo_anagrafica:tipo,tipo:v('f-sup-tipo'),telefono:v('f-sup-tel'),email:v('f-sup-email'),indirizzo:v('f-sup-addr'),note:v('f-sup-note'),created_at:curForm.data?.created_at||Date.now()};
-  if(tipo==='privato'){
-    const nome=v('f-sup-nome'),cognome=v('f-sup-cognome');
-    if(!nome){toast('Nome obbligatorio','err');return;}
-    Object.assign(r,{nome,cognome,codice_fiscale:(v('f-sup-cf')||'').toUpperCase()});
-  } else {
-    const rs=v('f-sup-rag-soc'),piva=v('f-sup-piva');
-    if(!rs){toast('Ragione sociale obbligatoria','err');return;}
-    if(!piva){toast('Partita IVA obbligatoria','err');return;}
-    Object.assign(r,{ragione_sociale:rs,nome:rs,partita_iva:piva,codice_fiscale:(v('f-sup-cf-az')||'').toUpperCase()});
+  try{
+    const tipo=v('f-sup-tipo-ana')||'privato';
+    let r={id:curForm.data?.id||uid(),tipo_anagrafica:tipo,tipo:v('f-sup-tipo'),telefono:v('f-sup-tel'),email:v('f-sup-email'),indirizzo:v('f-sup-addr'),note:v('f-sup-note'),created_at:curForm.data?.created_at||Date.now()};
+    if(tipo==='privato'){
+      const nome=v('f-sup-nome'),cognome=v('f-sup-cognome');
+      if(!nome){toast('Nome obbligatorio','err');return;}
+      Object.assign(r,{nome,cognome,codice_fiscale:(v('f-sup-cf')||'').toUpperCase()});
+    } else {
+      const rs=v('f-sup-rag-soc'),piva=v('f-sup-piva');
+      if(!rs){toast('Ragione sociale obbligatoria','err');return;}
+      if(!piva){toast('Partita IVA obbligatoria','err');return;}
+      Object.assign(r,{ragione_sociale:rs,nome:rs,partita_iva:piva,codice_fiscale:(v('f-sup-cf-az')||'').toUpperCase()});
+    }
+    upsert('suppliers',r);closeSheet();renderGest();toast('Fornitore salvato!');await syncUp();
+  }catch(err){
+    console.error('[saveFornitore]',err);
+    toast('Errore: '+err.message,'err');
   }
-  upsert('suppliers',r);closeSheet();renderGest();toast('Fornitore salvato!');await syncUp();
 }
 
 /* ══════════════════════ SETTINGS ══════════════════════ */
@@ -3483,7 +3941,7 @@ function renderSettings(){
       {id:'s-ft',ic:'📝',bg:'var(--teal-bg)',title:'Footer contratti',html:`<div class="ios-fg"><div class="ios-f ta"><label style="width:auto;font-size:12px">Footer</label><textarea id="s-footer_contract" placeholder="Footer PDF...">${esc(S.footer_contract)}</textarea></div></div>`},
     ].map(sec=>`<div class="sg"><div class="sg-head" onclick="togSec('${sec.id}')"><div class="sg-ico" style="background:${sec.bg}">${sec.ic}</div><span class="sg-title">${sec.title}</span><span class="sg-arr${sec.open?' open':''}" id="arr-${sec.id}">›</span></div><div class="sg-body${sec.open?' open':''}" id="${sec.id}">${sec.html}</div></div>`).join('')}
     </div>
-    <div style="padding:14px 0 6px"><button class="ios-btn primary" id="s-save-btn" onclick="saveSettings()">💾 Salva Impostazioni</button></div>
+    <div style="padding:14px 0 6px"><button class="ios-btn primary" id="s-save-btn" onclick="saveSettings()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Salva Impostazioni</button></div>
     <div style="padding:0 0 6px"><button class="ios-btn danger" onclick="doLogout()">🚪 Logout — ${CURRENT_USER?.username||'—'}</button></div>
     <div style="padding:0 0 14px">${renderUsersSection()}</div>`}`;
 }
@@ -3494,46 +3952,70 @@ function switchRole(r){
 }
 
 async function saveSettings(){
-  // Ensure all sections are open so fields are in DOM
-  ['s-az','s-hd','s-rt','s-st','s-ft'].forEach(id=>{
-    const b=document.getElementById(id);
-    if(b&&!b.classList.contains('open'))b.classList.add('open');
-  });
-
-  const name = v('s-company_name');
-  const piva = v('s-company_piva');
-  if(!name){toast('Nome azienda obbligatorio','err');return;}
-  if(!piva){toast('P.IVA obbligatoria','err');return;}
-
   const btn=document.getElementById('s-save-btn');
   if(btn){btn.disabled=true;btn.textContent='⏳ Salvo…';}
 
-  const newSettings={
-    company_name:    name,
-    company_address: v('s-company_address'),
-    company_phone:   v('s-company_phone'),
-    company_email:   v('s-company_email'),
-    company_piva:    piva,
-    iban:            v('s-iban'),
-    contract_header: v('s-contract_header'),
-    contract_notes:  v('s-contract_notes'),
-    contract_terms_rental:  v('s-contract_terms_rental'),
-    contract_terms_sales:   v('s-contract_terms_sales'),
-    footer_contract: v('s-footer_contract'),
-    logo_base64:     SETTINGS.logo_base64||'',
+  // Apri tutte le sezioni per rendere i campi leggibili
+  ['s-az','s-hd','s-rt','s-st','s-ft'].forEach(id=>{
+    const b=document.getElementById(id);
+    if(b&&!b.classList.contains('open')){
+      b.classList.add('open');
+      const arr=document.getElementById('arr-'+id);
+      if(arr)arr.classList.add('open');
+    }
+  });
+
+  // Piccolo delay per garantire che il DOM sia aggiornato
+  await new Promise(r=>setTimeout(r,50));
+
+  const name = v('s-company_name');
+  const piva = v('s-company_piva');
+  if(!name){toast('Nome azienda obbligatorio','err');if(btn){btn.disabled=false;btn.textContent='💾 Salva Impostazioni';}return;}
+  if(!piva){toast('P.IVA obbligatoria','err');if(btn){btn.disabled=false;btn.textContent='💾 Salva Impostazioni';}return;}
+
+  // Leggi i valori — usa .value diretto sui textarea per preservare newline
+  const getTA = id => document.getElementById(id)?.value || '';
+
+  // Impostazioni testuali — senza logo (troppo grande per GAS)
+  const textSettings={
+    company_name:          name,
+    company_address:       v('s-company_address'),
+    company_phone:         v('s-company_phone'),
+    company_email:         v('s-company_email'),
+    company_piva:          piva,
+    iban:                  v('s-iban'),
+    contract_header:       getTA('s-contract_header'),
+    contract_notes:        getTA('s-contract_notes'),
+    contract_terms_rental: getTA('s-contract_terms_rental'),
+    contract_terms_sales:  getTA('s-contract_terms_sales'),
+    footer_contract:       getTA('s-footer_contract'),
   };
 
-  console.log('[Settings] Saving:', newSettings);
+  // Logo: salvato SOLO in localStorage (può essere centinaia di KB)
+  // NON viene inviato a Google Sheets per evitare limiti di dimensione
+  const logo = SETTINGS.logo_base64||'';
+  if(logo){
+    try{localStorage.setItem('as_logo_backup', logo);}catch(e){}
+  }
 
+  // Impostazioni complete (con logo) per uso in memoria
+  const fullSettings = {...textSettings, logo_base64: logo};
+
+  // Salva backup locale immediato (tutto, logo incluso)
+  try{localStorage.setItem('as_settings_backup', JSON.stringify(fullSettings));}catch(e){}
+
+  // Aggiorna SETTINGS in memoria subito
+  SETTINGS = {...SETTINGS, ...fullSettings};
+  updateUserNav();
+
+  // Invia a Google Sheets SOLO le impostazioni testuali (senza logo)
   try {
-    await apiWriteS(newSettings);
-    SETTINGS = newSettings;
-    toast('✅ Impostazioni salvate!');
+    await apiWriteS(textSettings);
+    toast('Impostazioni salvate!');
     document.getElementById('nav-company-name').textContent=SETTINGS.company_name||'D&D DedCar';
-    console.log('[Settings] Saved OK');
   } catch(e) {
     console.error('[Settings] Save error:', e);
-    toast('Errore: '+e.message,'err');
+    toast('⚠️ Salvato localmente — errore rete: '+e.message,'info');
   }
 
   if(btn){btn.disabled=false;btn.textContent='💾 Salva Impostazioni';}
@@ -3542,7 +4024,7 @@ async function saveSettings(){
 /* ══════════════════════ ANALISI CLIENTI ══════════════════════ */
 function renderAnalisiIn(body){
   const clienti=DATA.clienti;
-  if(!clienti.length){body.innerHTML=`<div class="empty-state"><div class="ei">📊</div><h3>Nessun cliente</h3></div>`;return;}
+  if(!clienti.length){body.innerHTML=`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/></svg></div><h3>Nessun cliente</h3></div>`;return;}
   const today=new Date();
   function age(dn){if(!dn)return null;const d=new Date(dn.includes('T')?dn:dn+'T00:00:00');return Math.floor((today-d)/(365.25*24*3600*1000));}
   const ages=clienti.map(c=>age(c.data_nascita)).filter(a=>a!=null&&a>0&&a<120);
@@ -3599,8 +4081,22 @@ function remStatus(r){
 }
 /* Icona per tipo scadenza */
 function remIcon(tipo){
-  const icons={assicurazione:'🛡️',bollo:'📋',revisione:'🔬',tagliando:'🔩',patente:'🪪',affitto:'🏠',utenze:'💡',stipendio:'👤',tasse:'💼',assicurazione_aziendale:'🏢',software:'💻',manutenzione_sede:'🔨',altro:'📌'};
-  return icons[tipo]||'⏰';
+  const icons={
+    assicurazione: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>`,
+    bollo:         `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg>`,
+    revisione:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg>`,
+    tagliando:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+    patente:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="2" y="5" width="20" height="14" rx="2"/><path d="M16 10a2 2 0 1 0-2 2h2"/><path d="M7 10h2"/><path d="M7 14h5"/></svg>`,
+    affitto:       `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>`,
+    utenze:        `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>`,
+    stipendio:     `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
+    tasse:         `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/><line x1="10" y1="9" x2="8" y2="9"/></svg>`,
+    assicurazione_aziendale:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg>`,
+    software:      `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="12" r="3"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>`,
+    manutenzione_sede:`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>`,
+    altro:         `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/></svg>`,
+  };
+  return icons[tipo]||`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`;
 }
 
 let scadFilter='tutti';
@@ -3660,12 +4156,12 @@ function renderScadenze(){
   }
 
   const totUrgente=(grouped.expired.concat(grouped.soon)).reduce((s,r)=>s+(parseFloat(r.importo)||0),0);
-  const headerExtra=totUrgente>0?`<div style="background:var(--red-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:var(--red);font-weight:600">⚠ Importi scaduti/in scadenza</span><span style="font-size:16px;font-weight:700;color:var(--red)">€ ${fN(totUrgente)}</span></div>`:'';
+  const headerExtra=totUrgente>0?`<div style="background:var(--red-bg);border-radius:var(--r);padding:12px 14px;margin-bottom:4px;display:flex;justify-content:space-between;align-items:center"><span style="font-size:13px;color:var(--red);font-weight:600">Importi scaduti/in scadenza</span><span style="font-size:16px;font-weight:700;color:var(--red)">€ ${fN(totUrgente)}</span></div>`:'';
 
   const isEmpty=!grouped.expired.length&&!grouped.soon.length&&!grouped.ok.length;
   body.innerHTML=isEmpty
-    ?`<div class="empty-state"><div class="ei">🔔</div><h3>Nessuna scadenza${scadFilter!=='tutti'?' per questo filtro':''}</h3><p>Aggiungi con +</p></div>`
-    :headerExtra+`${grp(grouped.expired,'🔴 Scaduti')}${grp(grouped.soon,'🟡 In scadenza entro 7 giorni')}${grp(grouped.ok,'✅ Nei tempi')}`;
+    ?`<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg></div><h3>Nessuna scadenza${scadFilter!=='tutti'?' per questo filtro':''}</h3><p>Aggiungi con +</p></div>`
+    :headerExtra+`${grp(grouped.expired,'Scaduti')}${grp(grouped.soon,'In scadenza entro 7 giorni')}${grp(grouped.ok,'Nei tempi')}`;
 }
 
 function showReminder(id){
@@ -3678,138 +4174,296 @@ function showReminder(id){
   const today=new Date();today.setHours(0,0,0,0);
   const scad=new Date((r.data_scadenza||'')+'T00:00:00');
   const diff=Math.floor((scad-today)/(24*3600*1000));
-  const diffLabel=r.stato==='completato'?'Completato':diff<0?`Scaduta ${Math.abs(diff)} giorni fa`:diff===0?'Scade oggi!':diff<=7?`Tra ${diff} giorni`:`${fD(r.data_scadenza)}`;
+  const diffLabel=r.stato==='completato'?'Completata'
+    :diff<0?`Scaduta ${Math.abs(diff)} giorni fa`
+    :diff===0?'Scade oggi!'
+    :diff<=7?`Tra ${diff} giorni`
+    :fD(r.data_scadenza);
   const badgeCls=r.stato==='completato'?'reminder-badge-ok':st==='expired'?'reminder-badge-expired':'reminder-badge-soon';
+  const periodLabel={mensile:'Mensile',trimestrale:'Trimestrale',annuale:'Annuale',biennale:'Biennale','una-tantum':'Una tantum'};
+  const vxSold=vx?.stato==='venduto';
 
   document.getElementById('detail-title').textContent='Scadenza';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">${remIcon(r.tipo)}</div>
-      <div class="hero-name">${r.descrizione||r.tipo}</div>
-      <div class="hero-sub">${isGen?'Scadenza generale':'Veicolo: '+refName}</div>
-      <div style="margin-top:10px"><span class="${badgeCls}">${diffLabel}</span></div>
+      <div style="margin-bottom:8px">${remIcon(r.tipo)}</div>
+      <div class="hero-name">${r.descrizione||r.tipo?.replace(/_/g,' ')||'—'}</div>
+      <div class="hero-sub">${isGen?r.note||'Generale':`Veicolo: ${refName}${vxSold?' · Venduto':''}`}</div>
+      <div style="margin-top:10px;display:flex;gap:6px;justify-content:center;flex-wrap:wrap">
+        <span class="${badgeCls}">${diffLabel}</span>
+        ${r.periodicita&&r.periodicita!=='una-tantum'?`<span class="badge b-blue">${periodLabel[r.periodicita]||r.periodicita}</span>`:''}
+        ${vxSold?`<span class="badge b-dim">Veicolo venduto</span>`:''}
+      </div>
       ${r.importo>0?`<div style="margin-top:8px;font-size:20px;font-weight:700;color:var(--orange)">€ ${fN(r.importo)}</div>`:''}
     </div>
     <div class="list-section"><div class="list-header">Dettagli</div><div class="ios-list">
       <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Tipo</div><div class="ios-row-title" style="text-transform:capitalize">${r.tipo?.replace(/_/g,' ')||'—'}</div></div></div>
-      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Categoria</div><div class="ios-row-title">${isGen?'🏢 Generale':'🚗 Veicolo'}</div></div></div>
+      <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricorrenza</div><div class="ios-row-title">${periodLabel[r.periodicita||'']||'Una tantum'}</div></div></div>
       ${!isGen&&vx?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Veicolo</div><div class="ios-row-title">${vx.marca||''} ${vx.modello||''} · ${vx.targa||''}</div></div></div>`:''}
-      ${r.note?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title">${r.note}</div></div></div>`:''}
+      ${r.note&&isGen?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title">${r.note}</div></div></div>`:''}
       <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data scadenza</div><div class="ios-row-title">${fD(r.data_scadenza)}</div></div></div>
       ${r.importo>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo</div><div class="ios-row-title" style="color:var(--orange);font-weight:700">€ ${fN(r.importo)}</div></div></div>`:''}
     </div></div>
     <div class="btn-stack" style="margin-top:8px">
-      ${r.stato!=='completato'?`<button class="ios-btn success" onclick="completaReminder('${id}')">✅ Segna completato</button>`:''}
+      ${r.stato!=='completato'?`<button class="ios-btn success" onclick="completaReminder('${id}')">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+        Segna come pagata
+      </button>`:''}
       <button class="ios-btn danger" onclick="askDel('reminder','${id}')">Elimina</button>
     </div>`;
   openDetail();
 }
 async function completaReminder(id){
-  const r=DATA.reminders.find(x=>x.id===id);if(!r)return;
-  r.stato='completato';closeDetail();renderScadenze();updateScadenzeBadge();toast('Scadenza completata ✅');await syncUp();
+  try{
+    const r=DATA.reminders.find(x=>x.id===id);if(!r)return;
+    r.stato='completato';
+    closeDetail();
+    renderScadenze();
+    updateScadenzeBadge();
+    await syncUp();
+
+    // Calcola periodicità automatica per tipo
+    const ricorrenzaAuto={
+      bollo:'annuale', assicurazione:'annuale', revisione:'annuale',
+      tagliando:'annuale', patente:'biennale',
+      affitto:'mensile', utenze:'mensile', software:'mensile',
+      tasse:'annuale', stipendio:'mensile', assicurazione_aziendale:'annuale',
+    };
+    const periodicita=r.periodicita||ricorrenzaAuto[r.tipo]||null;
+
+    if(!periodicita||periodicita==='una-tantum'){
+      toast('Scadenza completata');
+      return;
+    }
+
+    // Per scadenze veicolo: stop se veicolo venduto
+    if(r.riferimento_tipo==='veicolo'&&r.riferimento_id){
+      const vx=DATA.veicoli.find(x=>x.id===r.riferimento_id);
+      if(vx?.stato==='venduto'){
+        toast('Scadenza completata — veicolo venduto, nessuna prossima generata');
+        return;
+      }
+    }
+
+    // Chiedi se generare la prossima
+    const prossimaData=calcolaProssimaData(r.data_scadenza, periodicita);
+    const prossimaStr=fD(prossimaData);
+    const periodLabel={mensile:'mese',annuale:'anno',biennale:'2 anni'};
+    const lbl=periodLabel[periodicita]||periodicita;
+
+    // Mostra dialog di conferma
+    if(confirm(`Scadenza completata!\n\nVuoi generare la prossima?\n→ ${r.tipo?.replace(/_/g,' ')} del ${prossimaStr} (+1 ${lbl})`)){
+      const nuova={
+        id:uid(),
+        tipo:r.tipo,
+        descrizione:r.descrizione,
+        data_scadenza:prossimaData,
+        importo:r.importo||0,
+        note:r.note||'',
+        stato:'attivo',
+        periodicita,
+        riferimento_tipo:r.riferimento_tipo,
+        riferimento_id:r.riferimento_id,
+        created_at:Date.now()
+      };
+      DATA.reminders.push(nuova);
+      renderScadenze();
+      updateScadenzeBadge();
+      await syncUp();
+      toast(`Prossima scadenza creata per il ${prossimaStr}`);
+    } else {
+      toast('Scadenza completata');
+    }
+  }catch(err){
+    console.error('[completaReminder]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+/* Calcola la data della prossima occorrenza */
+function calcolaProssimaData(dataStr, periodicita){
+  if(!dataStr)return new Date().toISOString().split('T')[0];
+  const [y,m,d]=dataStr.split('-').map(Number);
+  let ny=y, nm=m, nd=d;
+  if(periodicita==='mensile')     { nm+=1; if(nm>12){nm=1;ny++;} }
+  else if(periodicita==='annuale'){ ny+=1; }
+  else if(periodicita==='biennale'){ny+=2; }
+  else if(periodicita==='trimestrale'){ nm+=3; if(nm>12){nm=nm-12;ny++;} }
+  // Correggi giorni fuori range (es. 31 feb)
+  const maxD=new Date(ny,nm,0).getDate();
+  if(nd>maxD)nd=maxD;
+  return `${ny}-${String(nm).padStart(2,'0')}-${String(nd).padStart(2,'0')}`;
 }
 
 /* ── REMINDER FORM ── */
 function bReminder(body,d){
-  const vl=[...DATA.veicoli].sort((a,b)=>a.marca.localeCompare(b.marca));
-  const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
+  const vl=[...DATA.veicoli].filter(x=>x.stato!=='venduto').sort((a,b)=>a.marca.localeCompare(b.marca));
   const today=new Date().toISOString().split('T')[0];
 
+  // Ricorrenza automatica per tipo (suggerimento)
+  const ricorrenzaDefault={
+    bollo:'annuale',assicurazione:'annuale',revisione:'annuale',tagliando:'annuale',patente:'biennale',
+    affitto:'mensile',utenze:'mensile',software:'mensile',tasse:'annuale',
+    stipendio:'mensile',assicurazione_aziendale:'annuale',
+  };
+
   const tipiVeicolo=[
-    {v:'assicurazione',l:'🛡 Assicurazione'},
-    {v:'bollo',l:'📋 Bollo'},
-    {v:'revisione',l:'🔧 Revisione'},
-    {v:'tagliando',l:'🔩 Tagliando'},
-    {v:'patente',l:'🪪 Patente'},
+    {v:'assicurazione',l:'Assicurazione'},{v:'bollo',l:'Bollo'},
+    {v:'revisione',l:'Revisione'},{v:'tagliando',l:'Tagliando'},
+    {v:'patente',l:'Patente/Documenti'},{v:'altro',l:'Altro veicolo'},
   ];
   const tipiGenerali=[
-    {v:'affitto',l:'🏠 Affitto'},
-    {v:'utenze',l:'💡 Utenze'},
-    {v:'stipendio',l:'👤 Stipendio/Collaboratore'},
-    {v:'tasse',l:'💼 Tasse/Contributi'},
-    {v:'assicurazione_aziendale',l:'🏢 Assicurazione aziendale'},
-    {v:'software',l:'💻 Abbonamento software'},
-    {v:'manutenzione_sede',l:'🔨 Manutenzione sede'},
-    {v:'altro',l:'📌 Altro'},
+    {v:'affitto',l:'Affitto'},{v:'utenze',l:'Utenze'},
+    {v:'stipendio',l:'Stipendio/Collaboratore'},{v:'tasse',l:'Tasse/Contributi'},
+    {v:'assicurazione_aziendale',l:'Assicurazione aziendale'},
+    {v:'software',l:'Abbonamento software'},{v:'altro',l:'Altro'},
   ];
 
-  const currentRif=d?.riferimento_tipo||'veicolo';
   const isGen=d?.tipo&&!tipiVeicolo.find(t=>t.v===d.tipo);
+  const prePer=d?.periodicita||ricorrenzaDefault[d?.tipo||'']||'una-tantum';
 
   body.innerHTML=`
     <div class="fsec"><div class="fsec-title">Categoria</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:4px">
-        <button class="km-opt ${!isGen?'sel':''}" id="rem-cat-veicolo" onclick="selRemCat('veicolo')" style="font-size:12px">🚗<br><span style="font-size:10px">Veicolo</span></button>
-        <button class="km-opt ${isGen?'sel':''}" id="rem-cat-generale" onclick="selRemCat('generale')" style="font-size:12px">🏢<br><span style="font-size:10px">Generale</span></button>
+        <button class="km-opt ${!isGen?'sel':''}" id="rem-cat-veicolo" onclick="selRemCat('veicolo')" style="font-size:12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
+          <br><span style="font-size:10px">Veicolo</span>
+        </button>
+        <button class="km-opt ${isGen?'sel':''}" id="rem-cat-generale" onclick="selRemCat('generale')" style="font-size:12px">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 10h.01"/><path d="M8 10h.01"/><path d="M16 10h.01"/></svg>
+          <br><span style="font-size:10px">Generale</span>
+        </button>
       </div>
     </div>
 
-    <div class="fsec"><div class="fsec-title">Tipo e data</div><div class="ios-fg">
-      <div class="ios-f"><label>Tipo *</label><select id="f-rem-tipo">
+    <div class="fsec"><div class="fsec-title">Dettagli</div><div class="ios-fg">
+      <div class="ios-f"><label>Tipo *</label><select id="f-rem-tipo" onchange="onRemTipoChange(this.value)">
         <option value="">Seleziona…</option>
-        <optgroup label="Veicolo" id="rem-opts-veicolo">
-          ${tipiVeicolo.map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
-        </optgroup>
-        <optgroup label="Generale" id="rem-opts-generale" style="display:none">
-          ${tipiGenerali.map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
-        </optgroup>
+        ${(!isGen?tipiVeicolo:tipiGenerali).map(t=>`<option value="${t.v}"${d?.tipo===t.v?' selected':''}>${t.l}</option>`).join('')}
       </select></div>
-      <div class="ios-f"><label>Descrizione</label><input id="f-rem-desc" placeholder="Es: Rinnovo assicurazione Panda" value="${esc(d?.descrizione||'')}"></div>
+      <div class="ios-f"><label>Descrizione</label><input id="f-rem-desc" placeholder="Es: Bollo Panda EL123" value="${esc(d?.descrizione||'')}"></div>
       <div class="ios-f"><label>Importo €</label><input id="f-rem-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${esc(d?.importo||'')}"></div>
-      <div class="ios-f"><label>Scadenza *</label>${dateSelectHTML('f-rem-data', d?.data_scadenza||today)}</div>
+      <div class="ios-f"><label>Prima scadenza *</label>${dateSelectHTML('f-rem-data', d?.data_scadenza||today)}</div>
+      <div class="ios-f"><label>Ricorrenza</label>
+        <select id="f-rem-period" style="text-align:right;text-align-last:right">
+          <option value="una-tantum"${prePer==='una-tantum'?' selected':''}>Una tantum</option>
+          <option value="mensile"${prePer==='mensile'?' selected':''}>Mensile</option>
+          <option value="trimestrale"${prePer==='trimestrale'?' selected':''}>Trimestrale</option>
+          <option value="annuale"${prePer==='annuale'?' selected':''}>Annuale</option>
+          <option value="biennale"${prePer==='biennale'?' selected':''}>Biennale (ogni 2 anni)</option>
+        </select>
+      </div>
     </div></div>
 
     <div id="f-rem-rif-section" style="${isGen?'display:none':''}">
-      <div class="fsec"><div class="fsec-title">Veicolo</div><div class="ios-fg">
+      <div class="fsec"><div class="fsec-title">Veicolo collegato</div><div class="ios-fg">
         <div class="ios-f"><label>Veicolo</label><select id="f-rem-vid">
-          <option value="">Nessuno specifico</option>${vl.map(v=>`<option value="${v.id}"${d?.riferimento_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}
+          <option value="">Nessuno specifico</option>
+          ${vl.map(v=>`<option value="${v.id}"${d?.riferimento_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}
         </select></div>
       </div></div>
     </div>
 
     <div id="f-rem-gen-section" style="${!isGen?'display:none':''}">
-      <div class="fsec"><div class="fsec-title">Riferimento</div><div class="ios-fg">
-        <div class="ios-f"><label>Note</label><input id="f-rem-note" placeholder="Fornitore, numero contratto…" value="${esc(d?.note||'')}"></div>
+      <div class="fsec"><div class="fsec-title">Note</div><div class="ios-fg">
+        <div class="ios-f"><label>Note</label><input id="f-rem-note" placeholder="Fornitore, riferimento…" value="${esc(d?.note||'')}"></div>
       </div></div>
     </div>
 
+    <p style="font-size:11px;color:var(--label3);padding:4px 8px 8px">
+      Quando segni come "Completata", il sistema proporrà automaticamente la prossima scadenza.
+    </p>
     <button class="ios-btn primary" onclick="saveReminder()" style="margin-top:6px">${d?.id?'Aggiorna':'Aggiungi'} Scadenza</button>`;
 
-  // Init categoria giusta se modifica
   if(isGen) selRemCat('generale');
 }
 
 function selRemCat(cat){
-  document.getElementById('rem-cat-veicolo')?.classList.toggle('sel',cat==='veicolo');
-  document.getElementById('rem-cat-generale')?.classList.toggle('sel',cat==='generale');
-  document.getElementById('f-rem-rif-section').style.display=cat==='veicolo'?'':'none';
-  document.getElementById('f-rem-gen-section').style.display=cat==='generale'?'':'none';
-  // Show/hide option groups
-  const ogV=document.getElementById('rem-opts-veicolo');
-  const ogG=document.getElementById('rem-opts-generale');
-  if(ogV)ogV.style.display=cat==='veicolo'?'':'none';
-  if(ogG)ogG.style.display=cat==='generale'?'':'none';
-  document.getElementById('f-rem-tipo').value='';
+  // Toggle bottoni categoria
+  document.getElementById('rem-cat-veicolo')?.classList.toggle('sel', cat==='veicolo');
+  document.getElementById('rem-cat-generale')?.classList.toggle('sel', cat==='generale');
+
+  // Mostra/nascondi sezioni collegate
+  const rifSec = document.getElementById('f-rem-rif-section');
+  const genSec = document.getElementById('f-rem-gen-section');
+  if(rifSec) rifSec.style.display = cat==='veicolo' ? '' : 'none';
+  if(genSec) genSec.style.display = cat==='generale' ? '' : 'none';
+
+  // Ricostruisce le opzioni del select con i tipi giusti per la categoria
+  const tipiVeicolo=[
+    {v:'assicurazione',l:'Assicurazione'},{v:'bollo',l:'Bollo'},
+    {v:'revisione',l:'Revisione'},{v:'tagliando',l:'Tagliando'},
+    {v:'patente',l:'Patente/Documenti'},{v:'altro',l:'Altro'},
+  ];
+  const tipiGenerali=[
+    {v:'affitto',l:'Affitto'},{v:'utenze',l:'Utenze'},
+    {v:'stipendio',l:'Stipendio/Collaboratore'},{v:'tasse',l:'Tasse/Contributi'},
+    {v:'assicurazione_aziendale',l:'Assicurazione aziendale'},
+    {v:'software',l:'Abbonamento software'},{v:'altro',l:'Altro'},
+  ];
+  const tipi = cat==='veicolo' ? tipiVeicolo : tipiGenerali;
+  const sel = document.getElementById('f-rem-tipo');
+  if(sel){
+    sel.innerHTML = '<option value="">Seleziona…</option>'
+      + tipi.map(t=>`<option value="${t.v}">${t.l}</option>`).join('');
+  }
 }
+
+function onRemTipoChange(tipo){
+  // Suggerisci ricorrenza automatica per il tipo scelto
+  const auto={bollo:'annuale',assicurazione:'annuale',revisione:'annuale',tagliando:'annuale',
+    patente:'biennale',affitto:'mensile',utenze:'mensile',software:'mensile',
+    tasse:'annuale',stipendio:'mensile',assicurazione_aziendale:'annuale'};
+  const suggerito=auto[tipo];
+  if(suggerito){
+    const sel=document.getElementById('f-rem-period');
+    if(sel&&sel.value==='una-tantum')sel.value=suggerito;
+  }
+}
+
 async function saveReminder(){
-  const tipo=v('f-rem-tipo'),data=v('f-rem-data');
-  if(!tipo){toast('Seleziona tipo','err');return;}
-  if(!data){toast('Data obbligatoria','err');return;}
-  const catVeicolo=document.getElementById('rem-cat-veicolo')?.classList.contains('sel');
-  const rifId=catVeicolo?(v('f-rem-vid')||''):'';
-  const rifTipo=catVeicolo?'veicolo':'generale';
-  DATA.reminders.push({
-    id:uid(),tipo,
-    descrizione:v('f-rem-desc'),
-    data_scadenza:data,
-    importo:parseFloat(document.getElementById('f-rem-importo')?.value)||0,
-    note:document.getElementById('f-rem-note')?.value?.trim()||'',
-    stato:'attivo',
-    riferimento_tipo:rifTipo,
-    riferimento_id:rifId,
-    created_at:Date.now()
-  });
-  closeSheet();renderScadenze();updateScadenzeBadge();toast('Scadenza aggiunta!');await syncUp();
+  try{
+    const tipo=v('f-rem-tipo');
+    const data=v('f-rem-data');
+
+    if(!tipo){toast('Seleziona il tipo di scadenza','err');return;}
+    if(!data){toast('Inserisci la data di scadenza','err');return;}
+
+    const catVeicolo=document.getElementById('rem-cat-veicolo')?.classList.contains('sel');
+    const rifTipo=catVeicolo?'veicolo':'generale';
+    const rifId=catVeicolo?(v('f-rem-vid')||''):'';
+
+    const importoRaw=document.getElementById('f-rem-importo')?.value||'';
+    const importo=importoRaw===''?0:(parseFloat(importoRaw)||0);
+
+    const periodicita=document.getElementById('f-rem-period')?.value||'una-tantum';
+    const descrizione=(document.getElementById('f-rem-desc')?.value||'').trim();
+    const note=(document.getElementById('f-rem-note')?.value||'').trim();
+
+    const record={
+      id:uid(),
+      tipo,
+      descrizione,
+      data_scadenza:data,
+      importo,
+      note,
+      stato:'attivo',
+      periodicita,
+      riferimento_tipo:rifTipo,
+      riferimento_id:rifId,
+      created_at:Date.now()
+    };
+
+    DATA.reminders.push(record);
+    closeSheet();
+    renderScadenze();
+    updateScadenzeBadge();
+    await syncUp();
+    // syncUp mostra 'Salvato ✓' in caso di successo, o errore preciso in caso di fallimento
+  }catch(err){
+    console.error('[saveReminder]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ══════════════════════ DESTINAZIONE CAMBIO ══════════════════════ */
@@ -4077,7 +4731,7 @@ function genPdfDdt(id){
     </div>
 
     ${danniAttivi.length?`<div style="margin-bottom:20px;background:#fef2f2;border:1px solid #fecaca;border-radius:8px;padding:14px">
-      <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:8px">⚠ Danni preesistenti sul veicolo</div>
+      <div style="font-size:11px;font-weight:700;color:#dc2626;margin-bottom:8px">Danni preesistenti sul veicolo</div>
       ${danniAttivi.map(x=>`<div style="font-size:11px;color:#7f1d1d;padding:3px 0">${fD(x.data)} — ${x.descrizione||'—'}</div>`).join('')}
     </div>`:''}
 
@@ -4102,7 +4756,7 @@ function renderDanniIn(body){
   body.innerHTML=`<div class="ios-list">${!list.length
     ?`<div class="empty-state" style="padding:40px"><div class="ei">🚗💥</div><h3>Nessun danno registrato</h3><p>Aggiungi con +</p></div>`
     :list.map(d=>{const vx=vM[d.vehicle_id]||{};const c=cM[d.customer_id]||{};return`<div class="ios-row" onclick="showDanno('${d.id}')">
-      <div class="ios-row-icon" style="background:${d.stato==='attivo'?'var(--red-bg)':'var(--green-bg)'}">💥</div>
+      <div class="ios-row-icon" style="background:${d.stato==='attivo'?'var(--red-bg)':'var(--green-bg)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><polyline points="12 9 12 13"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg></div>
       <div class="ios-row-body">
         <div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''} <span style="font-family:monospace;font-size:11px;color:var(--label3)">${vx.targa||''}</span></div>
         <div class="ios-row-sub">${d.descrizione?.slice(0,50)||'—'} · ${fD(d.data)}</div>
@@ -4118,7 +4772,7 @@ function showDanno(id){
   document.getElementById('detail-title').textContent='Danno';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">💥</div>
+      <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><polyline points="12 9 12 13"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg></div>
       <div class="hero-name">${vx.marca||'?'} ${vx.modello||''}</div>
       <div class="hero-sub" style="font-family:monospace">${vx.targa||''}</div>
       <div style="margin-top:8px"><span class="badge ${d.stato==='attivo'?'b-red':'b-green'}">${d.stato}</span></div>
@@ -4160,39 +4814,53 @@ function bDanno(body,d){
     <button class="ios-btn primary" onclick="saveDanno()" style="margin-top:6px">Registra Danno</button>`;
 }
 async function saveDanno(){
-  const vid=v('f-d-vid'),data=v('f-d-data'),desc=document.getElementById('f-d-desc')?.value?.trim();
-  if(!vid){toast('Seleziona veicolo','err');return;}
-  if(!desc){toast('Descrizione obbligatoria','err');return;}
-  DATA.danni.push({id:uid(),vehicle_id:vid,customer_id:v('f-d-cid'),descrizione:desc,data,stato:'attivo',created_at:Date.now()});
-  closeSheet();renderGest();toast('Danno registrato 💥');await syncUp();
+  try{
+    const vid=v('f-d-vid'),data=v('f-d-data'),desc=document.getElementById('f-d-desc')?.value?.trim();
+    if(!vid){toast('Seleziona veicolo','err');return;}
+    if(!desc){toast('Descrizione obbligatoria','err');return;}
+    DATA.danni.push({id:uid(),vehicle_id:vid,customer_id:v('f-d-cid'),descrizione:desc,data,stato:'attivo',created_at:Date.now()});
+    closeSheet();renderGest();toast('Danno registrato 💥');await syncUp();
+  }catch(err){
+    console.error('[saveDanno]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ══════════════════════ LOGO UPLOAD ══════════════════════ */
 function handleLogoUpload(input){
   const file=input.files[0];
   if(!file){toast('Nessun file selezionato','err');return;}
-  // Validate type
   if(!file.type.startsWith('image/')){toast('Seleziona un file immagine (PNG, JPG, SVG)','err');return;}
-  // Warn if large
-  if(file.size>500*1024) toast('⚠ Immagine grande (>500KB) — potrebbe rallentare il salvataggio','info');
 
-  const btn=input.closest('label');
-  if(btn)btn.textContent='⏳ Caricamento…';
+  // Avviso dimensione — logo grande rallenta tutto
+  if(file.size>200*1024){
+    toast('Immagine grande (>200KB) — consigliato ridurre le dimensioni per prestazioni migliori','info');
+  }
+
+  const label=input.closest('label');
+  if(label)label.textContent='⏳ Caricamento…';
 
   const reader=new FileReader();
-  reader.onerror=()=>{toast('Errore lettura file','err');if(btn)btn.textContent='📷 Carica logo';};
+  reader.onerror=()=>{
+    toast('Errore lettura file','err');
+    if(label)label.innerHTML=logoLabelHTML(false);
+  };
   reader.onload=e=>{
     const result=e.target.result;
-    SETTINGS.logo_base64=result;
 
-    // Update preview — replace div with img if needed
+    // Salva subito in memoria e in localStorage
+    SETTINGS.logo_base64=result;
+    try{localStorage.setItem('as_logo_backup',result);}catch(le){
+      toast('Logo troppo grande per localStorage — verrà usato solo in questa sessione','info');
+    }
+
+    // Aggiorna preview nella pagina impostazioni
     const wrap=document.getElementById('logo-preview');
     if(wrap){
       if(wrap.tagName==='IMG'){
         wrap.src=result;
         wrap.style.display='block';
       } else {
-        // Replace div with img
         const img=document.createElement('img');
         img.id='logo-preview';
         img.src=result;
@@ -4201,11 +4869,15 @@ function handleLogoUpload(input){
       }
     }
 
-    if(btn){
-      btn.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Cambia logo
-        <input type="file" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">`;
+    // Aggiorna il pulsante label con il nuovo input file
+    if(label){
+      label.innerHTML=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16" style="vertical-align:middle;margin-right:6px"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg> Cambia logo<input type="file" accept="image/*" style="display:none" onchange="handleLogoUpload(this)">`;
     }
-    toast('✅ Logo caricato! Salva le impostazioni per renderlo definitivo.','info');
+
+    // Aggiorna logo nella sidebar
+    updateUserNav();
+
+    toast('Logo caricato! Clicca "Salva Impostazioni" per sincronizzare.','info');
   };
   reader.readAsDataURL(file);
 }
@@ -4566,7 +5238,7 @@ function requireAdmin(){
 
 /* ── USER MANAGEMENT RENDER ── */
 function renderUsersSection(){
-  if(!requireAdmin())return'<div class="empty-state"><div class="ei">🔒</div><h3>Solo Admin</h3></div>';
+  if(!requireAdmin())return'<div class="empty-state"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4" width="44" height="44"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg></div><h3>Solo Admin</h3></div>';
   const users=[...DATA.users];
   return`
     <div class="list-section" style="margin-top:0">
@@ -4620,17 +5292,22 @@ function bUser(body,d){
 }
 
 async function saveUser(){
-  if(!requireAdmin())return;
-  const username=(v('f-u-name')||'').toLowerCase().trim();
-  const password=document.getElementById('f-u-pass')?.value||'';
-  const ruolo=v('f-u-ruolo')||'employee';
-  if(!username){toast('Username obbligatorio','err');return;}
-  if(password.length<6){toast('Password minimo 6 caratteri','err');return;}
-  if(username==='admin'){toast('Username riservato','err');return;}
-  if(DATA.users.find(u=>u.username.toLowerCase()===username)){toast('Username già esistente','err');return;}
-  const hash=await sha256(password);
-  DATA.users.push({id:uid(),username,password_hash:hash,ruolo,created_at:Date.now()});
-  closeSheet();renderSettings();toast('Utente creato!');await syncUp();
+  try{
+    if(!requireAdmin())return;
+    const username=(v('f-u-name')||'').toLowerCase().trim();
+    const password=document.getElementById('f-u-pass')?.value||'';
+    const ruolo=v('f-u-ruolo')||'employee';
+    if(!username){toast('Username obbligatorio','err');return;}
+    if(password.length<6){toast('Password minimo 6 caratteri','err');return;}
+    if(username==='admin'){toast('Username riservato','err');return;}
+    if(DATA.users.find(u=>u.username.toLowerCase()===username)){toast('Username già esistente','err');return;}
+    const hash=await sha256(password);
+    DATA.users.push({id:uid(),username,password_hash:hash,ruolo,created_at:Date.now()});
+    closeSheet();renderSettings();toast('Utente creato!');await syncUp();
+  }catch(err){
+    console.error('[saveUser]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 async function changePassword(){
@@ -4730,7 +5407,7 @@ function renderFinOverview(body){
 }
 
 function renderMovimentiIn(body,metodoFiltro){
-  const etichette={contanti:'💵 Cassa (Contanti)',banca:'🏦 Banca (POS / Bonifico)'};
+  const etichette={contanti:'Cassa (Contanti)',banca:'Banca (POS / Bonifico)'};
   const metodiInclusi=metodoFiltro==='contanti'?['contanti']:['pos','bonifico'];
   const list=[...DATA.payments].filter(p=>metodiInclusi.includes(p.metodo)).sort((a,b)=>b.created_at-a.created_at);
   const saldo=DATA.payments.filter(p=>metodiInclusi.includes(p.metodo)).reduce((s,p)=>s+(p.tipo==='entrata'?1:-1)*(parseFloat(p.importo)||0),0);
@@ -4833,14 +5510,19 @@ function selPayMetodo(m){
   document.getElementById('f-pay-metodo').value=m;
 }
 async function savePayment(){
-  const tipo=v('f-pay-tipo');const metodo=v('f-pay-metodo');
-  const importo=parseFloat(v('f-pay-importo'));const data=v('f-pay-data');
-  if(!tipo){toast('Seleziona tipo','err');return;}
-  if(!metodo){toast('Seleziona metodo','err');return;}
-  if(!importo||importo<=0){toast('Importo non valido','err');return;}
-  if(!data){toast('Data obbligatoria','err');return;}
-  DATA.payments.push({id:uid(),tipo,metodo,importo,data,categoria:v('f-pay-cat'),descrizione:document.getElementById('f-pay-desc')?.value?.trim()||'',created_at:Date.now()});
-  closeSheet();renderFinanze();toast('Movimento registrato!');await syncUp();
+  try{
+    const tipo=v('f-pay-tipo');const metodo=v('f-pay-metodo');
+    const importo=parseFloat(v('f-pay-importo'));const data=v('f-pay-data');
+    if(!tipo){toast('Seleziona tipo','err');return;}
+    if(!metodo){toast('Seleziona metodo','err');return;}
+    if(!importo||importo<=0){toast('Importo non valido','err');return;}
+    if(!data){toast('Data obbligatoria','err');return;}
+    DATA.payments.push({id:uid(),tipo,metodo,importo,data,categoria:v('f-pay-cat'),descrizione:document.getElementById('f-pay-desc')?.value?.trim()||'',created_at:Date.now()});
+    closeSheet();renderFinanze();toast('Movimento registrato!');await syncUp();
+  }catch(err){
+    console.error('[savePayment]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ── COSTI AZIENDALI ── */
@@ -4864,9 +5546,9 @@ function renderCostiAzIn(body){
         </div>`).join('')}
     </div>`:''}
     <div class="ios-list">${!list.length
-      ?`<div class="empty-state" style="padding:40px"><div class="ei">🏢</div><h3>Nessun costo</h3><p>Aggiungi con +</p></div>`
+      ?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg></div><h3>Nessun costo</h3><p>Aggiungi con +</p></div>`
       :list.map(c=>`<div class="ios-row" onclick="showCostoAz('${c.id}')">
-          <div class="ios-row-icon" style="background:var(--orange-bg)">🏢</div>
+          <div class="ios-row-icon" style="background:var(--orange-bg)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg></div>
           <div class="ios-row-body">
             <div class="ios-row-title">${c.descrizione||c.categoria}</div>
             <div class="ios-row-sub">${fD(c.data)} · ${c.tipo} · ${c.categoria}</div>
@@ -4881,7 +5563,7 @@ function showCostoAz(id){
   document.getElementById('detail-title').textContent='Costo Aziendale';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px">🏢</div>
+      <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="4" y="2" width="16" height="20" rx="1"/><path d="M9 22v-4h6v4"/><path d="M8 6h.01"/><path d="M16 6h.01"/><path d="M12 6h.01"/><path d="M12 10h.01"/><path d="M12 14h.01"/><path d="M8 10h.01"/><path d="M8 14h.01"/><path d="M16 10h.01"/><path d="M16 14h.01"/></svg></div>
       <div class="hero-name">${c.categoria}</div>
       <div class="hero-sub">${c.tipo} · ${fD(c.data)}</div>
       <div style="margin-top:8px;font-size:28px;font-weight:700;color:var(--orange)">${fE(c.importo)}</div>
@@ -4892,6 +5574,8 @@ function showCostoAz(id){
     </div>`;
   openDetail();
 }
+// Alias usato da renderCostiCentralizzati
+function showCompanyCost(id){ showCostoAz(id); }
 
 function bCompanyCost(body,d){
   const today=new Date().toISOString().split('T')[0];
@@ -4920,11 +5604,16 @@ function bCompanyCost(body,d){
     <button class="ios-btn primary" onclick="saveCompanyCost()" style="margin-top:6px">💾 Registra Costo</button>`;
 }
 async function saveCompanyCost(){
-  const importo=parseFloat(v('f-cc-importo'));const data=v('f-cc-data');
-  if(!importo||importo<=0){toast('Importo non valido','err');return;}
-  if(!data){toast('Data obbligatoria','err');return;}
-  DATA.company_costs.push({id:uid(),categoria:v('f-cc-cat'),tipo:v('f-cc-tipo'),importo,data,descrizione:document.getElementById('f-cc-desc')?.value?.trim()||'',created_at:Date.now()});
-  closeSheet();renderFinanze();toast('Costo registrato!');await syncUp();
+  try{
+    const importo=parseFloat(v('f-cc-importo'));const data=v('f-cc-data');
+    if(!importo||importo<=0){toast('Importo non valido','err');return;}
+    if(!data){toast('Data obbligatoria','err');return;}
+    DATA.company_costs.push({id:uid(),categoria:v('f-cc-cat'),tipo:v('f-cc-tipo'),importo,data,descrizione:document.getElementById('f-cc-desc')?.value?.trim()||'',created_at:Date.now()});
+    closeSheet();renderFinanze();toast('Costo registrato!');await syncUp();
+  }catch(err){
+    console.error('[saveCompanyCost]',err);
+    toast('Errore: '+err.message,'err');
+  }
 }
 
 /* ══════════════════════ THEME ══════════════════════ */
