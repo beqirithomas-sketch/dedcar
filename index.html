@@ -800,7 +800,61 @@ body{
 .pdf-signs{display:grid;grid-template-columns:1fr 1fr;gap:28px;margin-top:32px}
 .pdf-sign{border-top:1px solid #94a3b8;padding-top:7px;font-size:11px;color:#475569}
 .pdf-sign strong{display:block;margin-bottom:4px}
-@media print{.pdf-bar{display:none!important}.pdf-doc{padding:0}}
+@media print{.pdf-bar{display:none!important}.pdf-doc{padding:0!important;overflow:visible!important}}
+/* A4 page simulation in screen preview */
+/* ═══ PDF LAYOUT ═══════════════════════════════════════
+   Struttura ogni pagina come colonna flex:
+   [header opzionale] [corpo flex-grow:1] [firma]
+   Così il corpo occupa tutto lo spazio disponibile e
+   la firma è SEMPRE in fondo, sia su schermo che in stampa.
+══════════════════════════════════════════════════════ */
+.pdf-page{
+  width:210mm;
+  height:297mm;           /* altezza fissa A4 su schermo */
+  padding:14mm 16mm 12mm;
+  margin:0 auto 10px;
+  background:#fff;
+  box-shadow:0 2px 14px rgba(0,0,0,.13);
+  box-sizing:border-box;
+  page-break-after:always;
+  /* FLEXBOX: colonna con spazio tra corpo e firma */
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+}
+.pdf-page:last-child{page-break-after:auto;}
+/* Corpo pagina: cresce per riempire lo spazio disponibile */
+.pdf-body{
+  flex:1 1 auto;
+  overflow:hidden;
+  min-height:0;
+}
+/* Firma: sempre in fondo, non cresce */
+.pdf-firma{
+  flex:0 0 auto;
+  border-top:1.5px solid #0f172a;
+  padding-top:5mm;
+  margin-top:auto;      /* spinge la firma verso il basso se corpo è corto */
+}
+/* Print */
+@media print{
+  html,body{margin:0!important;padding:0!important;background:#fff!important;}
+  #pdf-frame,#pdf-frame.open{position:static!important;display:block!important;}
+  .pdf-bar{display:none!important;}
+  .pdf-doc{overflow:visible!important;padding:0!important;background:#fff!important;}
+  .pdf-page{
+    width:210mm!important;height:297mm!important;
+    padding:14mm 16mm 12mm!important;margin:0!important;
+    box-shadow:none!important;page-break-after:always!important;
+    break-after:page!important;display:flex!important;
+    flex-direction:column!important;overflow:hidden!important;
+  }
+  .pdf-page:last-child{page-break-after:auto!important;break-after:auto!important;}
+  .pdf-body{flex:1 1 auto!important;overflow:hidden!important;min-height:0!important;}
+  .pdf-firma{flex:0 0 auto!important;border-top:1.5px solid #0f172a!important;
+    padding-top:5mm!important;margin-top:auto!important;}
+  @page{size:A4 portrait;margin:0;}
+}
 
 /* ══════════════════════════════════════
    MISC / UTILITY
@@ -1357,7 +1411,7 @@ input[type="search"]::-webkit-search-cancel-button{
 <!-- PDF -->
 <div id="pdf-frame">
   <div class="pdf-bar">
-    <button class="pdf-bar pdf-print" onclick="window.print()">🖨 Stampa / PDF</button>
+    <button class="pdf-bar pdf-print" onclick="stampaPdf()">🖨 Stampa / Salva PDF</button>
     <button class="pdf-bar pdf-close" onclick="closePdf()">✕ Chiudi</button>
   </div>
   <div class="pdf-doc" id="pdf-content"></div>
@@ -1377,7 +1431,75 @@ let SETTINGS={
   company_email:'info@dedcar.it',
   company_piva:'04797980408',
   iban:'',
-  contract_terms_rental:'',
+  contract_terms_rental:`ART.1 – Perfezionamento del Contratto
+Le presenti Condizioni Generali disciplinano tutti gli ordini aventi ad oggetto la prestazione di noleggio da parte di D&D. Eventuali condizioni difformi saranno valide ed efficaci solo se espressamente accettate per iscritto da D&D. Tutte le condizioni qui contenute si intendono integralmente accettate dal Cliente.
+Il contratto si perfeziona in forma scritta mediante lo scambio di documenti originali o tramite PEC/email. I documenti devono essere sottoscritti da un soggetto munito dei relativi poteri, con indicazione della qualifica.
+
+ART. 2 – Oggetto del Contratto
+Il contratto ha per oggetto il noleggio di una macchina messa a disposizione da D&D, il cui godimento è concesso al Cliente (di seguito anche "Conduttore").
+Il Conduttore è tenuto a provvedere alla manutenzione ordinaria, ai lubrificanti, al carburante, ai materiali di consumo, e a utilizzare la macchina tramite propri operatori. Con la sottoscrizione del verbale, il Conduttore dichiara che la macchina è conforme alle proprie esigenze e idonea all'uso richiesto.
+
+ART. 3 – Responsabilità per Ritardi
+In caso di ritardo nella riconsegna della macchina da parte del Conduttore, quest'ultimo sarà tenuto al risarcimento del danno nei confronti di D&D, il risarcimento equivale a €5 OGNI mezz'ora.
+Al momento della consegna della macchina, D&D e il Conduttore redigeranno congiuntamente un verbale in cui verrà indicato anche il livello di carburante presente nella macchina.
+
+ART. 4 – Proprietà della Macchina, Divieti e Sublocazione
+La macchina oggetto del contratto è di esclusiva proprietà di D&D. Il Conduttore non potrà vantare alcun diritto di proprietà sulla stessa.
+D&D garantisce il pacifico godimento della macchina da parte del Conduttore per l'intera durata contrattuale.
+Il Conduttore, in qualità di detentore qualificato, si impegna a non cedere la macchina a terzi, né a titolo gratuito né oneroso, e a non sublocare senza il previo consenso scritto di D&D.
+
+ART. 5 – Responsabilità del Conduttore, Manleva ed Esclusioni di Responsabilità
+Dal momento della consegna e fino alla restituzione della macchina, il Conduttore si assume ogni responsabilità per danni a persone, cose e alla macchina stessa, derivanti dal suo utilizzo o dalla manutenzione.
+Il Conduttore si impegna a manlevare e tenere indenne D&D da qualsiasi responsabilità verso terzi per danni occorsi durante l'uso della macchina. In caso di sinistro, il Conduttore dovrà darne comunicazione entro 24 ore sia alla propria compagnia assicurativa che a D&D.
+Il Conduttore è tenuto a utilizzare la macchina secondo le istruzioni e le norme d'uso contenute nella documentazione fornita da D&D.
+È inoltre responsabile per qualsiasi danneggiamento, deterioramento, perdita o furto, anche parziale, della macchina, obbligandosi a risarcire integralmente D&D per i danni subiti e a corrispondere l'importo giornaliero previsto per l'eventuale fermo tecnico necessario al ripristino.
+D&D non sarà responsabile per:
+a) vizi occulti non rilevabili con la normale diligenza, per i quali risponde il costruttore;
+b) danni a persone o cose causati dall'uso della macchina con parti danneggiate dal Conduttore;
+c) uso della macchina in modo difforme da quanto previsto dal manuale o dalle condizioni contrattuali.
+
+ART. 6 – Modalità d'Uso, Normative di Sicurezza e Limiti di Utilizzo
+La macchina concessa in uso è conforme alle normative vigenti in materia di sicurezza ed è consegnata con il relativo libretto d'uso e manutenzione, che il Conduttore si impegna a rispettare scrupolosamente.
+L'utilizzo dovrà avvenire secondo la configurazione prevista dal contratto. Qualora il Conduttore applichi accessori o pertinenze di terzi, o di sua proprietà, solleva sin da ora D&D da ogni responsabilità per danni alla macchina o a terzi (compresi furti e incendi), riservando altresì a D&D il diritto al risarcimento per eventuali danni derivanti da tali modifiche.
+La macchina potrà essere utilizzata per un massimo di:
+• 8 ore al giorno
+• 40 ore settimanali
+• 180 ore mensili
+Qualsiasi utilizzo eccedente tali limiti dovrà essere preventivamente concordato per iscritto con D&D.
+Eventuali eccedenze comporteranno un addebito proporzionale alle ore o ai giorni effettivamente utilizzati.
+La tariffa di noleggio include una percorrenza massima di 100 km al giorno; eventuali chilometri in eccesso saranno addebitati al costo indicato nel modulo contrattuale e comunque non inferiore a € 0,20/km.
+
+ART. 7 – Manutenzione Ordinaria, Riparazioni e Responsabilità per Anomalie
+La manutenzione ordinaria giornaliera, l'approvvigionamento di carburante o la ricarica delle batterie sono a carico del Conduttore, che dovrà attenersi scrupolosamente alle indicazioni del manuale d'uso fornito da D&D.
+Qualsiasi intervento presso officine diverse da quelle autorizzate da D&D dovrà essere preventivamente autorizzato in forma scritta.
+Qualora, durante gli interventi di manutenzione, vengano riscontrati danni imputabili al Conduttore, questi sarà tenuto al pagamento dei relativi costi, compresi quelli derivanti da eventuali fermi macchina (€45 al giorno), oltre al risarcimento dei danni subiti da D&D.
+Se, invece, i danni non risultano imputabili al Conduttore, quest'ultimo non sarà tenuto ad alcun pagamento per il periodo di fermo macchina necessario alla riparazione, ma non potrà in alcun modo avanzare richieste di risarcimento nei confronti di D&D per tale periodo.
+
+ART. 9 – Verifiche e utilizzo della macchina su suolo pubblico
+D&D, o un incaricato, ha il diritto di effettuare verifiche sulla macchina in qualsiasi momento, anche tramite geolocalizzazione, per accertare lo stato e l'uso corretto del mezzo. Il Conduttore dovrà rendere la macchina disponibile per ispezioni in un'area idonea.
+Il Conduttore è responsabile per il pagamento di pedaggi, accessi ZTL e sanzioni stradali, manlevando D&D da ogni onere. D&D si riserva il diritto di addebitare un importo forfettario per la gestione di ogni pratica sanzionatoria.
+
+ART. 10 – Restituzione della macchina, accesso per recupero, responsabilità per danni e penali
+La restituzione della macchina dovrà avvenire con almeno 4 (quattro) ore di preavviso, presso la sede di D&D, salvo diversa indicazione scritta.
+In caso di ritardo nella restituzione, al Conduttore sarà addebitata una penale di €5 ogni mezz'ora o pari al costo di noleggio giornaliero, non inferiore a €45 per ciascun giorno di ritardo, fatto salvo il diritto di D&D al risarcimento del maggior danno eventualmente subito.
+La durata del contratto è prorogabile solo con accordo scritto tra le parti prima della scadenza.
+Qualora il Conduttore intenda recedere anticipatamente, dovrà comunicarlo per iscritto a D&D con almeno 3 (tre) giorni lavorativi di preavviso, e sarà tenuto al pagamento di una penale pari al 15% del canone residuo previsto fino alla scadenza, altrimenti nel mancato preavviso entro i 3 giorni lavorativi sarà tenuto a pagare l'intera somma del contratto.
+In caso di mancata riconsegna della macchina nei termini previsti, D&D è sin da ora autorizzata ad accedere ai luoghi in cui si trova la macchina e procedere al ritiro, a spese e rischio del Conduttore.
+Il Conduttore autorizza sin da ora l'accesso e le operazioni di recupero senza opporsi, fatto salvo il diritto di D&D al risarcimento di tutti i danni e al rimborso di tutte le spese sostenute a causa dell'inadempimento o dell'esecuzione forzata del contratto.
+La macchina dovrà essere restituita in buono stato di conservazione e manutenzione, completa di tutti gli accessori e pertinenze, salvo normale usura, e con la stessa quantità di carburante presente al momento della consegna.
+Il Conduttore dovrà mettere a disposizione la macchina entro e non oltre il giorno lavorativo successivo alla data di fine noleggio.
+Eventuali danni riscontrati da D&D al momento della restituzione saranno comunicati al Conduttore entro tre giorni lavorativi. Il Conduttore potrà richiedere un confronto diretto (in contraddittorio) con D&D entro il termine indicato.
+In mancanza di verifica da parte del Conduttore o in caso di disaccordo sull'entità dei danni, D&D invierà un preventivo di riparazione.
+Il Conduttore, se assicurato, è tenuto a comunicare immediatamente i danni alla propria compagnia assicurativa, e si impegna comunque sin da ora a rifondere integralmente a D&D i danni, sia tramite l'assicurazione sia direttamente.
+Inoltre, il Conduttore dovrà sostenere i costi del fermo macchina per tutto il periodo necessario al ripristino.
+
+ART. 11 – Conteggi finali, obbligo di pagamento e cauzioni
+I conteggi finali verranno effettuati da D&D al termine del contratto.
+Il Cliente è tenuto al pagamento del corrispettivo pattuito anche in caso di mancato utilizzo della macchina durante il periodo di validità del contratto, salvo diverso accordo scritto tra le parti.
+
+ART. 12 – Modifiche e integrazioni
+Ogni modifica e/o integrazione al contratto e alle presenti condizioni generali dovrà avvenire esclusivamente per iscritto tra le parti.
+Qualsiasi accordo verbale sarà da considerarsi nullo e privo di efficacia.`,
   contract_terms_sales:'',
   contract_header:'',
   footer_contract:'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – Tel: +39 327 599 5090 – info@dedcar.it',
@@ -1449,7 +1571,13 @@ async function syncDown(){
 
     // Applica impostazioni testuali dal server
     if(s.settings&&Object.keys(s.settings).length){
-      SETTINGS={...SETTINGS,...s.settings};
+      // Non sovrascrivere le condizioni di default con stringhe vuote dal server
+      const merged={...SETTINGS,...s.settings};
+      const termsKeys=['contract_terms_rental','contract_terms_sales','contract_header','contract_notes'];
+      termsKeys.forEach(k=>{
+        if(!s.settings[k]&&SETTINGS[k]) merged[k]=SETTINGS[k];
+      });
+      SETTINGS=merged;
     } else {
       // Fallback: backup locale completo
       try{
@@ -1750,11 +1878,22 @@ function renderDash(){
   const svgBell=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>`;
   const svgAlert=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`;
 
+  // Calcola disponibilità basata sulle date, non sullo stato fisico
+  const todayStr=new Date().toISOString().split('T')[0];
+  // Veicoli in noleggio oggi = hanno almeno un noleggio attivo che copre oggi
+  const veicoliOccupatiOggi=new Set(
+    N.filter(n=>n.stato==='attivo'&&n.data_inizio<=todayStr&&n.data_fine>=todayStr)
+      .map(n=>n.vehicle_id)
+  );
+  const veicoliNoleggio=V.filter(x=>x.destinazione==='noleggio'&&x.stato!=='venduto'&&x.stato!=='manutenzione');
+  const noleggioOggi=veicoliOccupatiOggi.size;
+  const disponibiliOggi=veicoliNoleggio.filter(x=>!veicoliOccupatiOggi.has(x.id)).length;
+
   document.getElementById('kpi-grid').innerHTML=[
-    {l:'Disponibili',   v:V.filter(x=>x.stato==='disponibile').length, ic:svgCheck, bg:'var(--green-bg)',  c:'var(--green)'},
-    {l:'Noleggiati',    v:V.filter(x=>x.stato==='noleggiato').length,  ic:svgKey,   bg:'var(--blue-bg)',   c:'var(--blue)'},
-    {l:'Scad. urgenti', v:urgentRem,                                    ic:svgBell,  bg:'var(--orange-bg)', c:'var(--orange)'},
-    {l:'Danni attivi',  v:danniAttivi,                                  ic:svgAlert, bg:'var(--red-bg)',    c:'var(--red)'},
+    {l:'Disponibili oggi', v:disponibiliOggi,  ic:svgCheck, bg:'var(--green-bg)',  c:'var(--green)'},
+    {l:'In noleggio oggi', v:noleggioOggi,     ic:svgKey,   bg:'var(--blue-bg)',   c:'var(--blue)'},
+    {l:'Scad. urgenti',    v:urgentRem,         ic:svgBell,  bg:'var(--orange-bg)', c:'var(--orange)'},
+    {l:'Danni attivi',     v:danniAttivi,        ic:svgAlert, bg:'var(--red-bg)',    c:'var(--red)'},
   ].map(k=>`<div class="kpi-card" style="cursor:default">
     <div class="kpi-ico" style="background:${k.bg};color:${k.c}">${k.ic}</div>
     <div class="kpi-num" style="color:${k.c}">${k.v}</div>
@@ -1911,10 +2050,9 @@ function onDateSelChange(idPrefix){
   } else {
     hidden.value = '';
   }
-  // Se è una data che triggerare altri calcoli, chiamale
+  // Se è una data che deve triggerare altri calcoli, chiamale
   if(idPrefix==='f-dn') aggiornaCF();
-  if(idPrefix==='f-di') aggiornaDfMin();
-  if(idPrefix==='f-rem-data') {} // nessun trigger necessario
+  if(idPrefix==='f-di'||idPrefix==='f-df') aggiornaDfMin();
 }
 
 // Legge il valore "YYYY-MM-DD" dal campo hidden associato ai 3 select
@@ -1922,6 +2060,20 @@ function onDateSelChange(idPrefix){
 const upsert=(coll,r)=>{const i=DATA[coll].findIndex(x=>x.id===r.id);if(i>=0)DATA[coll][i]=r;else DATA[coll].push(r);};
 const SI={disponibile:'b-green',noleggiato:'b-blue',manutenzione:'b-orange',venduto:'b-dim'};
 const SICOL={disponibile:'var(--green-bg)',noleggiato:'var(--blue-bg)',manutenzione:'var(--orange-bg)',venduto:'var(--bg3)'};
+
+/* Stato effettivo del veicolo calcolato dalle date di noleggio.
+   NON usa vx.stato (che può essere obsoleto) ma guarda i noleggi attivi odierni. */
+function statoEffettivo(vx){
+  if(vx.stato==='venduto') return 'venduto';
+  if(vx.stato==='manutenzione') return 'manutenzione';
+  const oggi=new Date().toISOString().split('T')[0];
+  const attivo=DATA.noleggi.some(n=>
+    n.vehicle_id===vx.id &&
+    n.stato==='attivo' &&
+    n.data_inizio<=oggi && n.data_fine>=oggi
+  );
+  return attivo?'noleggiato':'disponibile';
+}
 
 /* ══════════════════════ CODICE FISCALE ══════════════════════ */
 /* ═══════════════════════════════════════════════
@@ -2286,7 +2438,8 @@ function renderVeicoli(){
   const svgCar=`<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>`;
   let list=DATA.veicoli.filter(vx=>{
     const ms=`${vx.marca} ${vx.modello} ${vx.targa}`.toLowerCase().includes(q);
-    const fs=fV==='tutti'||vx.stato===fV;
+    const stato=statoEffettivo(vx);
+    const fs=fV==='tutti'||stato===fV;
     const fd=fVDest==='tutti'||vx.destinazione===fVDest;
     return ms&&fs&&fd;
   }).sort((a,b)=>a.marca.localeCompare(b.marca));
@@ -2294,18 +2447,20 @@ function renderVeicoli(){
     ?`<div class="empty-state"><div class="ei">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" width="48" height="48"><path d="M5 17H3a2 2 0 0 1-2-2V9a2 2 0 0 1 2-2h1l2-3h10l2 3h1a2 2 0 0 1 2 2v6a2 2 0 0 1-2 2h-2"/><circle cx="7.5" cy="17" r="2"/><circle cx="16.5" cy="17" r="2"/></svg>
       </div><h3>Nessun veicolo</h3><p>${q||fV!=='tutti'||fVDest!=='tutti'?'Cambia i filtri':'Aggiungi con +'}</p></div>`
-    :list.map(vx=>`<div class="ios-row" onclick="showVeicolo('${vx.id}')">
-        <div class="ios-row-icon" style="background:${SICOL[vx.stato]||'var(--bg3)'};color:${vx.stato==='disponibile'?'var(--green)':vx.stato==='noleggiato'?'var(--blue)':vx.stato==='manutenzione'?'var(--orange)':'var(--label3)'}">${svgCar}</div>
+    :list.map(vx=>{
+      const stato=statoEffettivo(vx);
+      return`<div class="ios-row" onclick="showVeicolo('${vx.id}')">
+        <div class="ios-row-icon" style="background:${SICOL[stato]||'var(--bg3)'};color:${stato==='disponibile'?'var(--green)':stato==='noleggiato'?'var(--blue)':stato==='manutenzione'?'var(--orange)':'var(--label3)'}">${svgCar}</div>
         <div class="ios-row-body">
           <div class="ios-row-title">${vx.marca} ${vx.modello}</div>
           <div class="ios-row-sub">${vx.targa} · ${vx.anno||'—'} · ${fN(vx.km)} km</div>
         </div>
         <div class="ios-row-right">
           ${vx.destinazione?`<span class="badge ${vx.destinazione==='noleggio'?'b-teal':'b-purple'}" style="font-size:10px">${vx.destinazione==='noleggio'?'Noleggio':'Vendita'}</span>`:''}
-          <span class="badge ${SI[vx.stato]||'b-dim'}">${vx.stato}</span>
+          <span class="badge ${SI[stato]||'b-dim'}">${stato}</span>
           <span class="chev"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" width="14" height="14"><path d="m9 18 6-6-6-6"/></svg></span>
         </div>
-      </div>`).join('');
+      </div>`;}).join('');
 }
 
 function showVeicolo(id){
@@ -2319,7 +2474,11 @@ function showVeicolo(id){
   const profitto=ricNoleggi+(vendita?parseFloat(vendita.prezzo_vendita)||0:0)-totCosti;
   const isVenduto=vx.stato==='venduto';
   const isNoleggio=vx.destinazione==='noleggio';
-
+  // Stato reale calcolato sulle date dei noleggi (non su vx.stato)
+  const statoCalc=statoEffettivo(vx);
+  const oggi=new Date().toISOString().split('T')[0];
+  const noleggiFuturi=nl.filter(n=>n.stato==='attivo'&&n.data_fine>=oggi)
+    .sort((a,b)=>a.data_inizio.localeCompare(b.data_inizio));
   // Scadenze legate al veicolo
   const scadVeicolo=DATA.reminders.filter(r=>r.riferimento_id===id&&r.stato!=='completato');
   const scadUrgenti=scadVeicolo.filter(r=>remStatus(r)!=='ok');
@@ -2331,7 +2490,7 @@ function showVeicolo(id){
       <div class="hero-name">${vx.marca} ${vx.modello}</div>
       <div class="hero-sub" style="font-family:monospace;font-size:16px">${vx.targa}</div>
       <div style="margin-top:8px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
-        <span class="badge ${SI[vx.stato]||'b-dim'}">${vx.stato}</span>
+        <span class="badge ${SI[statoCalc]||'b-dim'}">${statoCalc}</span>
         ${vx.destinazione?`<span class="badge ${vx.destinazione==='noleggio'?'b-teal':'b-purple'}">${vx.destinazione==='noleggio'?'🔑 Noleggio':'💰 Vendita'}</span>`:''}
         ${scadUrgenti.length?`<span class="badge b-red">⚠ ${scadUrgenti.length} scad.</span>`:''}
       </div>
@@ -2439,54 +2598,112 @@ function showNoleggio(id){
   const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'½ Metà','un-quarto':'¼','riserva':'Riserva'};
   const kmInfo=n.km_tipo==='illimitati'?'Illimitati':n.km_tipo==='giornalieri'?`${fN(n.km_inclusi)} km/giorno`:`${fN(n.km_inclusi)} km totali`;
   const kmDiff=n.km_fine&&n.km_inizio?n.km_fine-n.km_inizio:null;
+
+  // Calcolo finanziario
+  const totale=parseFloat(n.prezzo)||0;
+  const acconto=parseFloat(n.acconto)||0;
+  const cauzione=parseFloat(n.cauzione)||0;
+  const pagamenti=Array.isArray(n.pagamenti)?n.pagamenti:[];
+  const totPagamenti=pagamenti.filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
+  const totIncassato=acconto+totPagamenti;
+  const saldo=totale-totIncassato;
+  const metodiLabel={contanti:'Contanti',bonifico:'Bonifico',carta:'Carta',assegno:'Assegno',altro:'Altro'};
+
   document.getElementById('detail-title').textContent='Noleggio';
   document.getElementById('detail-body').innerHTML=`
     <div class="hero-card">
-      <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="46" height="46"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div>
+      <div style="margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="46" height="46"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div>
       <div class="hero-name">${nomeAnagrafica(c)||'?'}</div>
       <div class="hero-sub">${vx.marca||'?'} ${vx.modello||''} · ${vx.targa||''}</div>
       <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span>
-        <span class="badge ${n.incassato?'b-green':'b-orange'}">${n.incassato?'Incassato':'Da incassare'}</span>
+        <span class="badge ${saldo<=0?'b-green':'b-orange'}">${saldo<=0?'Saldato':'Saldo: '+fE(saldo)}</span>
         ${n.km_tipo?`<span class="badge b-blue">${kmInfo}</span>`:''}
       </div>
     </div>
-    <div class="list-section"><div class="list-header">Dettagli</div>
+
+    <div class="list-section"><div class="list-header">Dettagli contratto</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Periodo</div><div class="ios-row-title">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div></div>
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo</div><div class="ios-row-title amount-big">${fE(n.prezzo)}</div></div></div>
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Incasso</div><div class="ios-row-title" style="color:${n.incassato?'var(--green)':'var(--orange)'}">${n.incassato?'Incassato':'Da incassare'}</div></div></div>
-        ${n.km_tipo?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM inclusi</div><div class="ios-row-title">${kmInfo}</div></div></div>`:''}
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Totale contratto</div><div class="ios-row-title amount-big">${fE(totale)}</div></div></div>
+        ${acconto>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Acconto versato</div><div class="ios-row-title" style="color:var(--green)">- ${fE(acconto)}</div></div></div>`:''}
+        ${cauzione>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Cauzione (non è ricavo)</div><div class="ios-row-title" style="color:var(--blue)">${fE(cauzione)}</div></div></div>`:''}
+        ${totPagamenti>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Pagamenti ricevuti</div><div class="ios-row-title" style="color:var(--green)">- ${fE(totPagamenti)}</div></div></div>`:''}
+        <div class="ios-row" style="background:${saldo<=0?'var(--green-bg)':'var(--orange-bg)'}"><div class="ios-row-body"><div class="ios-row-sub">Saldo residuo</div><div class="ios-row-title" style="color:${saldo<=0?'var(--green)':'var(--orange)'};font-weight:700">${fE(Math.max(0,saldo))}</div></div></div>
       </div>
     </div>
-    ${n.km_inizio!=null?`<div class="list-section"><div class="list-header">Check-out (Consegna)</div>
+
+    ${pagamenti.length?`<div class="list-section"><div class="list-header">Pagamenti registrati</div>
+      <div class="ios-list">${pagamenti.map((p,i)=>`
+        <div class="ios-row">
+          <div class="ios-row-icon" style="background:${p.incassato?'var(--green-bg)':'var(--orange-bg)'}">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="2" y="5" width="20" height="14" rx="2"/><line x1="2" y1="10" x2="22" y2="10"/></svg>
+          </div>
+          <div class="ios-row-body">
+            <div class="ios-row-title">${fE(p.importo)} ${p.metodo?'· '+metodiLabel[p.metodo]:''}</div>
+            <div class="ios-row-sub">${fD(p.data)} · ${p.note||''}</div>
+          </div>
+          <div class="ios-row-right">
+            <span class="badge ${p.incassato?'b-green':'b-orange'}">${p.incassato?'Incassato':'Atteso'}</span>
+            <button onclick="togglePagamentoNoleggio('${id}',${i})" style="background:none;border:none;font-size:11px;color:var(--label3);cursor:pointer;padding:2px 4px">⇄</button>
+            <button onclick="rimuoviPagamentoNoleggio('${id}',${i})" style="background:none;border:none;font-size:11px;color:var(--red);cursor:pointer;padding:2px 4px">✕</button>
+          </div>
+        </div>`).join('')}
+      </div>
+    </div>`:''}
+
+    <div class="list-section"><div class="list-header">Aggiungi pagamento</div>
+      <div class="ios-fg" style="border-radius:var(--r);overflow:hidden;border:1px solid var(--sep)">
+        <div class="ios-f"><label>Importo €</label><input id="np-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="${fN(Math.max(0,saldo))}"></div>
+        <div class="ios-f"><label>Data</label><input id="np-data" type="date" value="${new Date().toISOString().split('T')[0]}" style="text-align:right;background:transparent;border:none;outline:none;color:var(--label);font-size:16px;font-family:inherit;flex:1;-webkit-appearance:auto;appearance:auto"></div>
+        <div class="ios-f"><label>Metodo</label>
+          <select id="np-metodo" style="text-align:right;text-align-last:right">
+            <option value="contanti">Contanti</option>
+            <option value="bonifico">Bonifico</option>
+            <option value="carta">Carta</option>
+            <option value="assegno">Assegno</option>
+            <option value="altro">Altro</option>
+          </select>
+        </div>
+        <div class="ios-f"><label>Note</label><input id="np-note" placeholder="Saldo, prima rata…"></div>
+        <div class="ios-f"><label>Stato</label>
+          <select id="np-stato" style="text-align:right;text-align-last:right">
+            <option value="1">Incassato</option>
+            <option value="0">Atteso/non incassato</option>
+          </select>
+        </div>
+      </div>
+      <button class="ios-btn success" onclick="aggiungiPagamentoNoleggio('${id}')" style="margin-top:8px">+ Aggiungi pagamento</button>
+    </div>
+
+    ${n.km_inizio!=null?`<div class="list-section"><div class="list-header">Check-out</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM inizio</div><div class="ios-row-title">${fN(n.km_inizio)} km</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Carburante</div><div class="ios-row-title">${carbLabels[n.carburante_inizio]||n.carburante_inizio||'—'}</div></div></div>
-        ${n.note_inizio?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title" style="white-space:pre-wrap;font-size:14px">${n.note_inizio}</div></div></div>`:''}
+        ${n.note_inizio?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title">${n.note_inizio}</div></div></div>`:''}
       </div></div>`:''}
-    ${n.km_fine!=null?`<div class="list-section"><div class="list-header">Check-in (Rientro)</div>
+    ${n.km_fine!=null?`<div class="list-section"><div class="list-header">Check-in</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM fine</div><div class="ios-row-title">${fN(n.km_fine)} km</div></div></div>
-        ${kmDiff!=null?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM percorsi</div><div class="ios-row-title" style="font-weight:600">${fN(kmDiff)} km</div></div></div>`:''}
+        ${kmDiff!=null?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM percorsi</div><div class="ios-row-title">${fN(kmDiff)} km</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Carburante rientro</div><div class="ios-row-title">${carbLabels[n.carburante_fine]||n.carburante_fine||'—'}</div></div></div>
         ${n.extra_costi>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Extra addebitati</div><div class="ios-row-title" style="color:var(--orange)">€ ${fN(n.extra_costi)}</div></div></div>`:''}
-        ${n.danni_rientro?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Danni al rientro</div><div class="ios-row-title" style="color:var(--red)">${n.danni_rientro}</div></div></div>`:''}
-        ${n.note_fine?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Note</div><div class="ios-row-title" style="white-space:pre-wrap;font-size:14px">${n.note_fine}</div></div></div>`:''}
+        ${n.danni_rientro?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Danni</div><div class="ios-row-title" style="color:var(--red)">${n.danni_rientro}</div></div></div>`:''}
       </div></div>`:''}
+
     <div class="btn-stack" style="margin-top:8px">
       ${!n.incassato
-        ?`<button class="ios-btn success" onclick="toggleIncassatoNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Segna incassato</button>`
-        :`<button class="ios-btn neutral" onclick="toggleIncassatoNoleggio('${id}')">Annulla incasso</button>`
+        ?`<button class="ios-btn success" onclick="toggleIncassatoNoleggio('${id}')">Segna tutto incassato</button>`
+        :`<button class="ios-btn neutral" onclick="toggleIncassatoNoleggio('${id}')">Annulla incasso totale</button>`
       }
       <button class="ios-btn primary" onclick="editNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
-      ${n.stato==='attivo'&&n.km_inizio==null?`<button class="ios-btn primary" onclick="openSheet('checkout',{noleggioId:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M9 3H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg> Check-out</button>`:''}
-      ${n.stato==='attivo'&&n.km_inizio!=null&&n.km_fine==null?`<button class="ios-btn warn" onclick="openSheet('checkin',{noleggioId:'${id}'})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="m9 11 3 3L22 4"/><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"/></svg> Check-in</button>`:''}
-      ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg> Chiudi Noleggio</button>`:''}
+      ${n.stato==='attivo'&&n.km_inizio==null?`<button class="ios-btn primary" onclick="openSheet('checkout',{noleggioId:'${id}'})">Check-out</button>`:''}
+      ${n.stato==='attivo'&&n.km_inizio!=null&&n.km_fine==null?`<button class="ios-btn warn" onclick="openSheet('checkin',{noleggioId:'${id}'})">Check-in</button>`:''}
+      ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">Chiudi Noleggio</button>`:''}
       ${n.stato==='attivo'&&!n.km_inizio?`<button class="ios-btn neutral" onclick="chiudiNoleggio('${id}')">Chiudi rapido</button>`:''}
       <button class="ios-btn neutral" onclick="genPdfNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Contratto PDF</button>
-      <button class="ios-btn neutral" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><rect x="1" y="3" width="15" height="13" rx="1"/><path d="M16 8h4l3 3v5h-7V8z"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> Genera DDT</button>
-      ${n.danni_rientro?`<button class="ios-btn neutral" onclick="genPdfContestazione('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/></svg> Verbale rientro</button>`:''}
+      <button class="ios-btn neutral" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)">Genera DDT</button>
+      ${n.danni_rientro?`<button class="ios-btn neutral" onclick="genPdfContestazione('${id}')">Verbale rientro</button>`:''}
       <button class="ios-btn danger" onclick="askDel('noleggio','${id}')">Elimina</button>
     </div>`;
   openDetail();
@@ -2519,13 +2736,57 @@ async function toggleIncassatoNoleggio(id){
     const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
     n.incassato=!n.incassato;
     toast(n.incassato?'Segnato come incassato':'Incasso annullato');
-    showNoleggio(id); // ricarica il dettaglio
+    showNoleggio(id);
     renderDocs();
     await syncUp();
   }catch(err){
     console.error('[toggleIncassatoNoleggio]',err);
     toast('Errore: '+err.message,'err');
   }
+}
+
+/* Aggiungi pagamento al noleggio */
+async function aggiungiPagamentoNoleggio(id){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
+    const importo=parseFloat(document.getElementById('np-importo')?.value)||0;
+    const data=document.getElementById('np-data')?.value||new Date().toISOString().split('T')[0];
+    const metodo=document.getElementById('np-metodo')?.value||'contanti';
+    const note=(document.getElementById('np-note')?.value||'').trim();
+    const incassato=document.getElementById('np-stato')?.value==='1';
+    if(!importo||importo<=0){toast('Inserisci importo valido','err');return;}
+    if(!Array.isArray(n.pagamenti))n.pagamenti=[];
+    n.pagamenti.push({importo,data,metodo,note,incassato,created_at:Date.now()});
+    showNoleggio(id); // ricarica dettaglio
+    renderDocs();
+    await syncUp();
+    toast('Pagamento aggiunto!');
+  }catch(err){
+    console.error('[aggiungiPagamentoNoleggio]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+/* Toggle incassato su singolo pagamento */
+async function togglePagamentoNoleggio(id,idx){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n||!n.pagamenti?.[idx])return;
+    n.pagamenti[idx].incassato=!n.pagamenti[idx].incassato;
+    showNoleggio(id);
+    await syncUp();
+  }catch(err){toast('Errore: '+err.message,'err');}
+}
+
+/* Rimuovi pagamento */
+async function rimuoviPagamentoNoleggio(id,idx){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
+    if(!confirm('Rimuovere questo pagamento?'))return;
+    n.pagamenti.splice(idx,1);
+    showNoleggio(id);
+    await syncUp();
+    toast('Pagamento rimosso');
+  }catch(err){toast('Errore: '+err.message,'err');}
 }
 
 function editNoleggio(id){
@@ -2538,8 +2799,7 @@ async function chiudiNoleggio(id){
   try{
     const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
     n.stato='completato';
-    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);
-    if(vx&&vx.stato==='noleggiato')vx.stato='disponibile';
+    // Non modificare stato veicolo — la disponibilità è calcolata sulle date
     closeDetail();renderAll();renderDocs();toast('Noleggio chiuso!');await syncUp();
   }catch(err){
     console.error('[chiudiNoleggio]',err);
@@ -3339,57 +3599,144 @@ async function saveVeicolo(){
 }
 
 /* ── NOLEGGIO FORM ── */
-function bNoleggio(body){
+/* ══ DISPONIBILITÀ VEICOLI PER PERIODO ══════════════════
+   Un veicolo è disponibile se NON ha noleggi attivi
+   con date che si sovrappongono al periodo richiesto.
+   Sovrapposizione: NOT (nuovaFine < inizioEsist OR nuovaInizio > fineEsist)
+   escludiId: id del noleggio corrente (per modifica senza auto-conflitto)
+══════════════════════════════════════════════════════ */
+function veicoliDisponibiliPerPeriodo(di, df, escludiId){
+  if(!di||!df) return DATA.veicoli.filter(x=>x.destinazione==='noleggio'&&x.stato!=='venduto');
+  return DATA.veicoli.filter(vx=>{
+    if(vx.destinazione!=='noleggio') return false;
+    if(vx.stato==='venduto') return false;
+    if(vx.stato==='manutenzione') return false;
+    // Controlla sovrapposizione con noleggi attivi
+    const conflitti=DATA.noleggi.filter(n=>{
+      if(escludiId && n.id===escludiId) return false;
+      if(n.vehicle_id!==vx.id) return false;
+      if(n.stato==='completato'||n.stato==='cancellato') return false;
+      // Sovrapposizione: i periodi si intersecano se non è vero che uno finisce prima che l'altro inizi
+      const sovrappone=!(df<n.data_inizio || di>n.data_fine);
+      return sovrappone;
+    });
+    return conflitti.length===0;
+  });
+}
+
+/* Aggiorna la lista veicoli nel form quando cambiano le date */
+function aggiornaVeicoliDisponibili(){
+  const di=v('f-di'), df=v('f-df');
+  const escludiId=document.getElementById('f-noleggio-id')?.value||null;
+  const sel=document.getElementById('f-vid');
+  if(!sel)return;
+  const disp=veicoliDisponibiliPerPeriodo(di, df, escludiId)
+    .sort((a,b)=>a.marca.localeCompare(b.marca));
+  const prevVal=sel.value;
+  sel.innerHTML='<option value="">Seleziona veicolo…</option>'
+    +disp.map(x=>`<option value="${x.id}"${x.id===prevVal?' selected':''}>${x.marca} ${x.modello} – ${x.targa}</option>`).join('');
+  const info=document.getElementById('f-vid-info');
+  if(info){
+    if(!di||!df){
+      info.textContent='Inserisci le date per vedere i veicoli disponibili';
+      info.style.color='var(--label3)';
+    } else if(!disp.length){
+      info.textContent='Nessun veicolo disponibile per questo periodo';
+      info.style.color='var(--orange)';
+    } else {
+      info.textContent=disp.length+' veicolo/i disponibile/i';
+      info.style.color='var(--green)';
+    }
+  }
+  // Ricalcola prezzo se è al giorno
+  if(v('f-prezzo-mode')==='giorno')calcolaPrezzo();
+}
+
+function bNoleggio(body, d){
+  // d = dati esistenti per modalità modifica
   const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
-  const disp=DATA.veicoli.filter(x=>x.stato==='disponibile'&&x.destinazione==='noleggio');
   const today=new Date().toISOString().split('T')[0];
+  const yr={minYear:new Date().getFullYear()-1, maxYear:new Date().getFullYear()+5};
+
+  // In modifica: pre-calcola veicoli disponibili per il periodo esistente
+  const preVid=d?.vehicle_id||'';
+  const preDi=d?.data_inizio||today;
+  const preDf=d?.data_fine||'';
+  const escludiId=d?.id||null;
+  const dispPre=veicoliDisponibiliPerPeriodo(preDi, preDf, escludiId)
+    .sort((a,b)=>a.marca.localeCompare(b.marca));
+  // Assicura che il veicolo corrente appaia anche se non disponibile in altri periodi
+  const vxCorrente=d?.id?DATA.veicoli.find(x=>x.id===preVid):null;
+  const veicoliLista=vxCorrente&&!dispPre.find(x=>x.id===preVid)
+    ?[vxCorrente,...dispPre]
+    :dispPre;
+
   body.innerHTML=`
-    <div class="fsec"><div class="fsec-title">Parti</div>
+    <input type="hidden" id="f-noleggio-id" value="${d?.id||''}">
+
+    <div class="fsec"><div class="fsec-title">1 · Periodo</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Cliente *</label><select id="f-cid"><option value="">Seleziona…</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
-        <div class="ios-f"><label>Veicolo *</label><select id="f-vid"><option value="">Seleziona…</option>${disp.map(x=>`<option value="${x.id}">${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Data inizio *</label>${dateSelectHTML('f-di', preDi, yr)}</div>
+        <div class="ios-f"><label>Data fine *</label>${dateSelectHTML('f-df', preDf, yr)}</div>
       </div>
-      ${!disp.length?`<p style="font-size:13px;color:var(--orange);padding:4px">⚠️ Nessun veicolo disponibile</p>`:''}
+      <p style="font-size:11px;color:var(--label3);padding:4px 2px">Inserisci prima le date per vedere i veicoli disponibili.</p>
     </div>
-    <div class="fsec"><div class="fsec-title">Periodo</div>
+
+    <div class="fsec"><div class="fsec-title">2 · Veicolo e cliente</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Data inizio *</label>${dateSelectHTML('f-di', today, {minYear:new Date().getFullYear()-1, maxYear:new Date().getFullYear()+5})}</div>
-        <div class="ios-f"><label>Data fine *</label>${dateSelectHTML('f-df', '', {minYear:new Date().getFullYear()-1, maxYear:new Date().getFullYear()+5})}</div>
+        <div class="ios-f"><label>Veicolo *</label>
+          <select id="f-vid">
+            <option value="">Seleziona veicolo…</option>
+            ${veicoliLista.map(x=>`<option value="${x.id}"${x.id===preVid?' selected':''}>${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}
+          </select>
+        </div>
+        <div class="ios-f"><label>Cliente *</label><select id="f-cid"><option value="">Seleziona…</option>${cl.map(c=>`<option value="${c.id}"${d?.customer_id===c.id?' selected':''}>${nomeAnagrafica(c)}</option>`).join('')}</select></div>
       </div>
+      <p id="f-vid-info" style="font-size:11px;padding:4px 2px;color:var(--label3)">${!preDi||!preDf?'Inserisci le date per vedere i veicoli disponibili':veicoliLista.length+' veicolo/i disponibile/i'}</p>
     </div>
-    <div class="fsec"><div class="fsec-title">Importo</div>
+
+    <div class="fsec"><div class="fsec-title">3 · Importo</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-bottom:8px">
-        <button class="km-opt sel" id="prezzo-forfait" onclick="selPrezzoMode('forfait')" style="font-size:12px">
+        <button class="km-opt ${(!d||d.modalita_prezzo!=='giorno')?'sel':''}" id="prezzo-forfait" onclick="selPrezzoMode('forfait')" style="font-size:12px">
           💰<br><span style="font-size:10px">Forfettario</span>
         </button>
-        <button class="km-opt" id="prezzo-giorno" onclick="selPrezzoMode('giorno')" style="font-size:12px">
+        <button class="km-opt ${d?.modalita_prezzo==='giorno'?'sel':''}" id="prezzo-giorno" onclick="selPrezzoMode('giorno')" style="font-size:12px">
           📅<br><span style="font-size:10px">Al giorno</span>
         </button>
       </div>
-      <input type="hidden" id="f-prezzo-mode" value="forfait">
-      <div id="wrap-forfait">
-        <div class="ios-fg"><div class="ios-f"><label>Totale (€) *</label><input id="f-prezzo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div></div>
+      <input type="hidden" id="f-prezzo-mode" value="${d?.modalita_prezzo||'forfait'}">
+      <div id="wrap-forfait" style="${d?.modalita_prezzo==='giorno'?'display:none':''}">
+        <div class="ios-fg"><div class="ios-f"><label>Totale (€) *</label><input id="f-prezzo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.modalita_prezzo!=='giorno'&&d?.prezzo?d.prezzo:''}"></div></div>
       </div>
-      <div id="wrap-giorno" style="display:none">
+      <div id="wrap-giorno" style="${d?.modalita_prezzo==='giorno'?'':'display:none'}">
         <div class="ios-fg">
-          <div class="ios-f"><label>€/giorno *</label><input id="f-prezzo-giorno" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" oninput="calcolaPrezzo()"></div>
+          <div class="ios-f"><label>€/giorno *</label><input id="f-prezzo-giorno" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.prezzo_giornaliero||''}" oninput="calcolaPrezzo()"></div>
           <div class="ios-f"><label>Totale stimato</label><input id="f-prezzo-calc" type="text" readonly placeholder="Calcolato auto" style="color:var(--blue);font-weight:600"></div>
         </div>
         <p style="font-size:11px;color:var(--label3);padding:2px 2px 0">Calcolato sui giorni selezionati</p>
       </div>
     </div>
-    <div class="fsec"><div class="fsec-title">KM inclusi</div>
+
+    <div class="fsec"><div class="fsec-title">4 · KM inclusi</div>
       <div class="km-toggle">
-        <button class="km-opt sel" id="kmo-illimitati" onclick="selKmOpt('illimitati')">∞<br><span style="font-size:10px">Illimitati</span></button>
-        <button class="km-opt" id="kmo-giornalieri" onclick="selKmOpt('giornalieri')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><br><span style="font-size:10px">Al giorno</span></button>
-        <button class="km-opt" id="kmo-totali" onclick="selKmOpt('totali')">📍<br><span style="font-size:10px">Totali</span></button>
+        <button class="km-opt ${(!d||d.km_tipo==='illimitati')?'sel':''}" id="kmo-illimitati" onclick="selKmOpt('illimitati')">∞<br><span style="font-size:10px">Illimitati</span></button>
+        <button class="km-opt ${d?.km_tipo==='giornalieri'?'sel':''}" id="kmo-giornalieri" onclick="selKmOpt('giornalieri')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg><br><span style="font-size:10px">Al giorno</span></button>
+        <button class="km-opt ${d?.km_tipo==='totali'?'sel':''}" id="kmo-totali" onclick="selKmOpt('totali')">📍<br><span style="font-size:10px">Totali</span></button>
       </div>
-      <input type="hidden" id="f-km-tipo" value="illimitati">
-      <div id="f-km-num-wrap" style="display:none;margin-top:8px">
-        <div class="ios-fg"><div class="ios-f"><label id="f-km-lbl">KM *</label><input id="f-km-num" type="number" inputmode="decimal" min="0" placeholder="100"></div></div>
+      <input type="hidden" id="f-km-tipo" value="${d?.km_tipo||'illimitati'}">
+      <div id="f-km-num-wrap" style="${d?.km_tipo&&d.km_tipo!=='illimitati'?'':'display:none'};margin-top:8px">
+        <div class="ios-fg"><div class="ios-f"><label id="f-km-lbl">${d?.km_tipo==='giornalieri'?'KM/giorno *':'KM totali *'}</label><input id="f-km-num" type="number" inputmode="decimal" min="0" placeholder="100" value="${d?.km_inclusi||''}"></div></div>
       </div>
     </div>
-    <button class="ios-btn primary" onclick="saveNoleggio()" style="margin-top:6px" ${!disp.length?'disabled':''}>Crea Noleggio</button>`;
+
+    <div class="fsec"><div class="fsec-title">5 · Acconto e cauzione</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Acconto (€)</label><input id="f-acconto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.acconto||''}"></div>
+        <div class="ios-f"><label>Cauzione (€)</label><input id="f-cauzione" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.cauzione||''}"></div>
+      </div>
+      <p style="font-size:11px;color:var(--label3);padding:4px 2px">L'acconto è subito incassato. La cauzione non è un ricavo.</p>
+    </div>
+    <button class="ios-btn primary" onclick="saveNoleggio()" style="margin-top:6px">${d?.id?'Aggiorna Noleggio':'Crea Noleggio'}</button>`;
 }
 function selPrezzoMode(mode){
   document.getElementById('prezzo-forfait')?.classList.toggle('sel',mode==='forfait');
@@ -3419,9 +3766,8 @@ function selKmOpt(opt){
 }
 
 function aggiornaDfMin(){
-  // Con i select GG/MM/AAAA, aggiorniamo solo calcolaPrezzo
-  // La validazione di ordine date avviene in saveNoleggio
   calcolaPrezzo();
+  aggiornaVeicoliDisponibili(); // aggiorna lista veicoli per il nuovo periodo
 }
 
 async function saveNoleggio(){
@@ -3446,21 +3792,50 @@ async function saveNoleggio(){
     const kmTipo=v('f-km-tipo');
     const kmNum=parseInt(v('f-km-num'))||0;
     if(kmTipo!=='illimitati'&&kmNum<=0){toast('Inserisci i KM inclusi','err');return;}
+    // Controllo conflitti di disponibilità (doppio check lato JS)
+    const escludiId=document.getElementById('f-noleggio-id')?.value||null;
+    const conflitti=DATA.noleggi.filter(n=>{
+      if(escludiId && n.id===escludiId) return false;
+      if(n.vehicle_id!==vid) return false;
+      if(n.stato==='completato'||n.stato==='cancellato') return false;
+      return !(df<n.data_inizio || di>n.data_fine);
+    });
+    if(conflitti.length>0){
+      toast('Conflitto: il veicolo è già prenotato in questo periodo','err');
+      return;
+    }
+
+    const isEdit=!!escludiId;
+    const existing=isEdit?DATA.noleggi.find(x=>x.id===escludiId):null;
     const noleggio={
-      id:uid(),customer_id:cid,vehicle_id:vid,
+      id:escludiId||uid(),
+      customer_id:cid,vehicle_id:vid,
       data_inizio:di,data_fine:df,
       prezzo:pz,
       modalita_prezzo:mode,
       prezzo_giornaliero:prezzoGiornaliero,
-      stato:'attivo',
-      incassato:false,
+      stato:existing?.stato||'attivo',
+      incassato:existing?.incassato||false,
+      acconto:parseFloat(document.getElementById('f-acconto')?.value)||0,
+      cauzione:parseFloat(document.getElementById('f-cauzione')?.value)||0,
+      pagamenti:existing?.pagamenti||[],
       km_tipo:kmTipo,
       km_inclusi:kmTipo==='illimitati'?null:kmNum,
-      created_at:Date.now()
+      km_inizio:existing?.km_inizio,
+      km_fine:existing?.km_fine,
+      carburante_inizio:existing?.carburante_inizio,
+      carburante_fine:existing?.carburante_fine,
+      note_inizio:existing?.note_inizio,
+      note_fine:existing?.note_fine,
+      extra_costi:existing?.extra_costi,
+      danni_rientro:existing?.danni_rientro,
+      created_at:existing?.created_at||Date.now()
     };
-    DATA.noleggi.push(noleggio);
-    const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='noleggiato';
-    closeSheet();renderAll();renderDocs();toast('Noleggio creato!');await syncUp();
+    upsert('noleggi',noleggio);
+    // NON modificare stato veicolo — la disponibilità è calcolata sulle date
+    closeSheet();renderAll();renderDocs();
+    toast(isEdit?'Noleggio aggiornato!':'Noleggio creato!');
+    await syncUp();
   }catch(err){
     console.error('[saveNoleggio]',err);
     toast('Errore: '+err.message,'err');
@@ -4485,8 +4860,113 @@ function cambiaDestinazione(veicoloId,nuovaDest){
 }
 
 /* ══════════════════════ PDF HELPERS ══════════════════════ */
-function openPdf(html){document.getElementById('pdf-content').innerHTML=html;document.getElementById('pdf-frame').classList.add('open');}
-function closePdf(){document.getElementById('pdf-frame').classList.remove('open');}
+/* ══ PDF SYSTEM ════════════════════════════════════════════
+   Renderizza il contenuto in pagine A4 reali.
+   Ogni .pdf-section con data-avoid-break="1" viene tenuta
+   intera. La firma appare in fondo a ogni pagina.
+   Il bottone Stampa apre una finestra dedicata con @page A4.
+══════════════════════════════════════════════════════════ */
+
+/* ══════════════════════════════════════════════════
+   PDF SYSTEM — pagine esplicite A4
+   openPdfPages(pages, opts) accetta un array di pagine
+   già costruite. Ogni pagina è HTML puro.
+   stampaPdf() apre una finestra dedicata e stampa.
+   ══════════════════════════════════════════════════ */
+
+// Chiamata semplice: openPdf(html) per backward compat con DDT/vendita
+/* ══════════════════════════════════════════════════
+   PDF SYSTEM v3 — pagine esplicite A4
+   Approccio: ogni pagina è un div.pdf-page con
+   height fissa 297mm. Il contenuto è limitato.
+   La firma è posizionata absolute in fondo.
+   stampaPdf() apre finestra dedicata con CSS @page.
+══════════════════════════════════════════════════ */
+
+// Usato da DDT, vendita, contestazione (singola pagina)
+function openPdf(html){
+  const S=SETTINGS;
+  const f=_buildFirmaHtml('','',S.company_name,S.footer_contract);
+  _renderPdfPages([{html:html+f, cond:false}]);
+}
+
+// Usato da genPdfNoleggio (pagine esplicite)
+function openPdfPages(pages){
+  _renderPdfPages(pages);
+}
+
+// pages = [{html:'...', cond:false|true}, ...]
+// Tutte le pagine usano lo stesso layout flex: corpo cresce, firma in fondo
+function _renderPdfPages(pages){
+  const container=document.getElementById('pdf-content');
+  const frame=document.getElementById('pdf-frame');
+  container.innerHTML=pages.map(pg=>
+    '<div class="pdf-page">'
+    +(pg.content||pg.html||'')
+    +'</div>'
+  ).join('');
+  frame.classList.add('open');
+}
+
+// Costruisce il blocco firma HTML (usato in ogni pagina)
+function _buildFirmaHtml(locatario, locatoreLabel, companyName, footerTxt){
+  const loc=locatario||'Firma Locatario';
+  const soc='Per '+(companyName||'D&D DedCar');
+  const ft=footerTxt||'D&D DedCar \u2013 Via Emilia Ovest 9, Savignano sul Rubicone \u2013 P.IVA 04797980408';
+  return '<div class="pdf-firma">'
+    +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:20mm">'
+    +'<div><div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:14mm">'+loc+'</div>'
+    +'<div style="border-bottom:1px solid #94a3b8;font-size:9px;color:#64748b">&nbsp;</div></div>'
+    +'<div style="text-align:right"><div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:14mm">'+soc+'</div>'
+    +'<div style="border-bottom:1px solid #94a3b8;font-size:9px;color:#64748b">&nbsp;</div></div>'
+    +'</div>'
+    +'<div style="margin-top:8px;font-size:8px;color:#94a3b8;text-align:center">'+ft+'</div>'
+    +'</div>';
+}
+
+function closePdf(){
+  document.getElementById('pdf-frame').classList.remove('open');
+  document.getElementById('pdf-content').innerHTML='';
+}
+
+function stampaPdf(){
+  const content=document.getElementById('pdf-content');
+  if(!content||!content.innerHTML.trim()){
+    toast('Nessun documento da stampare','err');return;
+  }
+  const win=window.open('','_blank','width=860,height=720');
+  if(!win){
+    toast('Abilita i popup del browser per salvare il PDF','info');
+    window.print();
+    return;
+  }
+  // CSS finestra di stampa — identico al CSS schermo per coerenza
+  const css=[
+    '*{box-sizing:border-box;margin:0;padding:0}',
+    'html,body{background:#fff;font-family:Arial,Helvetica,sans-serif;font-size:12px;',
+    'color:#0f172a;-webkit-print-color-adjust:exact;print-color-adjust:exact}',
+    '@page{size:A4 portrait;margin:0}',
+    '.pdf-page{width:210mm;height:297mm;padding:14mm 16mm 12mm;',
+    'display:flex;flex-direction:column;page-break-after:always;break-after:page;overflow:hidden}',
+    '.pdf-page:last-child{page-break-after:auto;break-after:auto}',
+    '.pdf-body{flex:1 1 auto;overflow:hidden;min-height:0}',
+    '.pdf-firma{flex:0 0 auto;border-top:1.5px solid #0f172a;padding-top:5mm;margin-top:auto}',
+    'table{border-collapse:collapse;width:100%}',
+    'th{background:#0f172a!important;color:#fff!important;text-align:left;padding:7px 9px;font-size:11px}',
+    'td{padding:7px 9px;border:1px solid #e2e8f0;font-size:11px;vertical-align:top}',
+    'tr,img{page-break-inside:avoid;break-inside:avoid}',
+  ].join('');
+
+  win.document.write(
+    '<!DOCTYPE html><html lang="it"><head><meta charset="utf-8"><title>Contratto</title>'
+    +'<style>'+css+'</style></head><body>'
+    +content.innerHTML
+    +'</body></html>'
+  );
+  win.document.close();
+  win.onload=function(){setTimeout(function(){win.focus();win.print();},500);};
+  setTimeout(function(){if(!win.closed){win.focus();win.print();}},1400);
+}
 
 /* Calcola giorni tra due date YYYY-MM-DD */
 function calcolaGiorni(di,df){
@@ -4524,134 +5004,303 @@ function genPdfNoleggio(id){
   const carbLabels={'pieno':'Pieno','tre-quarti':'3/4','meta':'Metà','un-quarto':'1/4','riserva':'Riserva'};
   const kmInfo=n.km_tipo==='illimitati'?'Illimitati':n.km_tipo==='giornalieri'?`${fN(n.km_inclusi)} km/giorno`:`${fN(n.km_inclusi)} km totali`;
   const giorni=calcolaGiorni(n.data_inizio,n.data_fine);
-  const isGiornaliero=n.modalita_prezzo==='giornaliero';
-  const prezzoGiorno=isGiornaliero?(n.prezzo_giornaliero||0):(giorni>0?Math.round(n.prezzo/giorni*100)/100:0);
-  const totale=n.prezzo||0;
-
-  // Dati cliente formattati
+  const prezzoGiorno=n.modalita_prezzo==='giorno'?(n.prezzo_giornaliero||0):(giorni>0?Math.round((n.prezzo||0)/giorni*100)/100:0);
+  const totale=parseFloat(n.prezzo)||0;
+  const acconto=parseFloat(n.acconto)||0;
+  const cauzione=parseFloat(n.cauzione)||0;
+  const pagamenti=Array.isArray(n.pagamenti)?n.pagamenti:[];
+  const totPagInc=pagamenti.filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
+  const totIncassato=acconto+totPagInc;
+  const saldo=Math.max(0,totale-totIncassato);
   const isAz=c.tipo_anagrafica==='azienda';
   const clienteNome=nomeAnagrafica(c);
   const clienteCF=isAz?'P.IVA: '+(c.partita_iva||'—'):'C.F.: '+(c.codice_fiscale||'—');
-  const clienteAddr=[c.indirizzo,c.luogo_nascita].filter(Boolean).join(', ')||'—';
+  const metodiLabel={contanti:'Contanti',bonifico:'Bonifico',carta:'Carta',assegno:'Assegno',altro:'Altro'};
 
-  openPdf(`
-  <div style="font-family:Arial,Helvetica,sans-serif;color:#0f172a;font-size:12px;max-width:700px;margin:0 auto">
-
-    ${pdfHeader()}
-
-    <!-- Titolo documento + numero -->
-    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px">
+  // Blocco firme — ripetuto su ogni "pagina" logica
+  const firme=`
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:2px solid #0f172a">
       <div>
-        <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#2563eb">Contratto di Noleggio</div>
-        <div style="font-size:11px;color:#64748b;margin-top:3px">N° ${num} &nbsp;·&nbsp; Data: ${today}</div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:30px">Firma Locatario</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:2px;font-size:11px;color:#64748b">${clienteNome}</div>
       </div>
-      <div style="text-align:right;font-size:11px;color:#64748b">
-        <div>Data inizio: <strong>${fD(n.data_inizio)}</strong></div>
-        <div>Data fine: <strong>${fD(n.data_fine)}</strong></div>
+      <div style="text-align:right">
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:30px">Per ${S.company_name||'D&D DedCar'}</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:2px;font-size:11px;color:#64748b">${S.company_name||''}</div>
+      </div>
+    </div>`;
+
+  const footer=`
+    <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – Tel: +39 327 599 5090 – info@dedcar.it'}
+    </div>`;
+
+  // Tabella pagamenti se presenti
+  const tblPagamenti=pagamenti.length?`
+    <div style="margin-bottom:20px">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Pagamenti</div>
+      <table style="width:100%;border-collapse:collapse;font-size:11px">
+        <thead>
+          <tr style="background:#0f172a;color:#fff">
+            <th style="padding:7px 10px;text-align:left">Data</th>
+            <th style="padding:7px 10px;text-align:left">Metodo</th>
+            <th style="padding:7px 10px;text-align:left">Note</th>
+            <th style="padding:7px 10px;text-align:center">Stato</th>
+            <th style="padding:7px 10px;text-align:right">Importo</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${pagamenti.map((p,i)=>`<tr style="background:${i%2===0?'#f8fafc':'#fff'}">
+            <td style="padding:7px 10px;border:1px solid #e2e8f0">${fD(p.data)}</td>
+            <td style="padding:7px 10px;border:1px solid #e2e8f0">${metodiLabel[p.metodo]||p.metodo||'—'}</td>
+            <td style="padding:7px 10px;border:1px solid #e2e8f0">${p.note||'—'}</td>
+            <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:center">
+              <span style="background:${p.incassato?'#dcfce7':'#fef3c7'};color:${p.incassato?'#166534':'#92400e'};padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600">${p.incassato?'Incassato':'Atteso'}</span>
+            </td>
+            <td style="padding:7px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(p.importo)}</td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+    </div>`:'';
+
+  // Pagina 1: contratto principale
+  const _pages=[{cond:false, html:
+    `${pdfHeader()}
+    <div class="pdf-body">
+
+    <!-- Titolo + numero -->
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:20px" data-avoid-break="1">
+      <div>
+        <div style="font-size:20px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#2563eb">Contratto di Noleggio</div>
+        <div style="font-size:11px;color:#64748b;margin-top:3px">N° ${num} &nbsp;·&nbsp; Emesso il: ${today}</div>
+      </div>
+      <div style="text-align:right;font-size:11px;color:#64748b;background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:10px 14px">
+        <div>Inizio: <strong>${fD(n.data_inizio)}</strong></div>
+        <div>Fine: <strong>${fD(n.data_fine)}</strong></div>
         <div>Durata: <strong>${giorni} giorn${giorni===1?'o':'i'}</strong></div>
       </div>
     </div>
 
-    <!-- Parti: mittente + destinatario -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:20px;margin-bottom:20px">
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Locatore</div>
+    <!-- Parti -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px;page-break-inside:avoid">
+      <div style="background:#eff6ff;border:1px solid #bfdbfe;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#1d4ed8;margin-bottom:8px">Locatore</div>
         <div style="font-weight:700;font-size:13px">${S.company_name||'D&D DedCar'}</div>
-        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
-          ${[S.company_address,S.company_piva?'P.IVA: '+S.company_piva:'',S.company_phone?'Tel: '+S.company_phone:'',S.company_email||''].filter(Boolean).join('<br>')}
+        <div style="color:#475569;margin-top:4px;line-height:1.8;font-size:11px">
+          ${[S.company_address,S.company_piva?'P.IVA: '+S.company_piva:'',S.company_phone?'Tel: '+S.company_phone:'',S.company_email].filter(Boolean).join('<br>')}
         </div>
       </div>
-      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
-        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px">Conducente / Locatario</div>
+      <div style="background:#f0fdf4;border:1px solid #bbf7d0;border-radius:8px;padding:14px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#15803d;margin-bottom:8px">Conducente / Locatario</div>
         <div style="font-weight:700;font-size:13px">${clienteNome}</div>
-        <div style="color:#475569;margin-top:4px;line-height:1.7;font-size:11px">
+        <div style="color:#475569;margin-top:4px;line-height:1.8;font-size:11px">
           ${clienteCF}<br>
-          ${c.telefono?'Tel: '+c.telefono:''}${c.email?'<br>'+c.email:''}<br>
+          ${c.telefono?'Tel: '+c.telefono:''}<br>
           ${c.data_nascita?'Nato il '+fD(c.data_nascita)+(c.luogo_nascita?' a '+c.luogo_nascita:''):''}
         </div>
       </div>
     </div>
 
     <!-- Veicolo -->
-    <div style="margin-bottom:20px">
+    <div style="margin-bottom:20px;page-break-inside:avoid">
       <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Veicolo</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead>
           <tr style="background:#0f172a;color:#fff">
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Marca / Modello</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Targa</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Anno</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">KM consegna</th>
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Carburante</th>
+            <th style="padding:8px 10px;text-align:left">Marca / Modello</th>
+            <th style="padding:8px 10px;text-align:left">Targa</th>
+            <th style="padding:8px 10px;text-align:left">Anno</th>
+            <th style="padding:8px 10px;text-align:left">KM consegna</th>
+            <th style="padding:8px 10px;text-align:left">Carburante</th>
+            <th style="padding:8px 10px;text-align:left">KM inclusi</th>
           </tr>
         </thead>
         <tbody>
           <tr style="background:#f8fafc">
             <td style="padding:9px 10px;border:1px solid #e2e8f0;font-weight:600">${vx.marca||'—'} ${vx.modello||''}</td>
-            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-family:monospace">${vx.targa||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0;font-family:monospace;font-weight:600">${vx.targa||'—'}</td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0">${vx.anno||'—'}</td>
-            <td style="padding:9px 10px;border:1px solid #e2e8f0">${fN(n.km_inizio||vx.km)} km</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${fN(n.km_inizio??vx.km??0)} km</td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0">${carbLabels[n.carburante_inizio]||'—'}</td>
+            <td style="padding:9px 10px;border:1px solid #e2e8f0">${kmInfo}</td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Tabella importi tipo fattura -->
-    <div style="margin-bottom:20px">
-      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Dettaglio importo</div>
+    <!-- Importi -->
+    <div style="margin-bottom:20px;page-break-inside:avoid">
+      <div style="font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Dettaglio economico</div>
       <table style="width:100%;border-collapse:collapse;font-size:12px">
         <thead>
           <tr style="background:#0f172a;color:#fff">
-            <th style="padding:8px 10px;text-align:left;font-weight:600">Descrizione</th>
-            <th style="padding:8px 10px;text-align:center;font-weight:600">Giorni</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:600">Prezzo/giorno</th>
-            <th style="padding:8px 10px;text-align:right;font-weight:600">Totale</th>
+            <th style="padding:8px 10px;text-align:left">Descrizione</th>
+            <th style="padding:8px 10px;text-align:center">Giorni</th>
+            <th style="padding:8px 10px;text-align:right">€/giorno</th>
+            <th style="padding:8px 10px;text-align:right">Importo</th>
           </tr>
         </thead>
         <tbody>
           <tr style="background:#f8fafc">
             <td style="padding:9px 10px;border:1px solid #e2e8f0">
               Noleggio ${vx.marca||''} ${vx.modello||''} (${vx.targa||'—'})<br>
-              <span style="font-size:10px;color:#64748b">${fD(n.data_inizio)} → ${fD(n.data_fine)} &nbsp;·&nbsp; KM: ${kmInfo}</span>
+              <span style="font-size:10px;color:#64748b">${fD(n.data_inizio)} → ${fD(n.data_fine)}</span>
             </td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:center">${giorni}</td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right">€ ${fN(prezzoGiorno)}</td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(totale)}</td>
           </tr>
+          ${acconto>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#166534">Acconto versato (già incassato)</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#166534">- € ${fN(acconto)}</td></tr>`:''}
+          ${cauzione>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#1d4ed8">Deposito cauzionale (non è ricavo)</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#1d4ed8">€ ${fN(cauzione)}</td></tr>`:''}
         </tbody>
         <tfoot>
-          <tr style="background:#0f172a;color:#fff">
-            <td colspan="3" style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE</td>
-            <td style="padding:10px;text-align:right;font-weight:800;font-size:15px">€ ${fN(totale)}</td>
+          <tr style="background:#1e40af;color:#fff">
+            <td colspan="3" style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE CONTRATTO</td>
+            <td style="padding:10px;text-align:right;font-weight:800;font-size:16px">€ ${fN(totale)}</td>
+          </tr>
+          ${totIncassato>0?`<tr style="background:#166534;color:#fff"><td colspan="3" style="padding:8px 10px;text-align:right;font-weight:600">Totale incassato</td><td style="padding:8px 10px;text-align:right;font-weight:700">€ ${fN(totIncassato)}</td></tr>`:''}
+          <tr style="background:${saldo>0?'#92400e':'#166534'};color:#fff">
+            <td colspan="3" style="padding:8px 10px;text-align:right;font-weight:600">${saldo>0?'Saldo residuo':'Saldato'}</td>
+            <td style="padding:8px 10px;text-align:right;font-weight:700">${saldo>0?'€ '+fN(saldo):'✓'}</td>
           </tr>
         </tfoot>
       </table>
-      ${S.iban?`<div style="margin-top:8px;font-size:11px;color:#475569;text-align:right">Pagamento tramite bonifico: <strong>${S.iban}</strong></div>`:''}
+      ${S.iban?`<div style="margin-top:8px;font-size:11px;color:#475569;text-align:right">Bonifico: <strong>${S.iban}</strong></div>`:''}
     </div>
 
-    ${S.contract_header?`<div style="background:#f0f9ff;border-left:3px solid #2563eb;padding:10px 14px;margin-bottom:16px;font-size:11px;color:#334155;font-style:italic">${S.contract_header}</div>`:''}
-    ${S.contract_notes?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Note</div><div style="font-size:11px;color:#334155;white-space:pre-wrap;line-height:1.6">${S.contract_notes}</div></div>`:''}
-    ${S.contract_terms_rental?`<div style="margin-bottom:16px"><div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid #e2e8f0">Termini e Condizioni</div><div style="font-size:10px;color:#475569;white-space:pre-wrap;line-height:1.65">${S.contract_terms_rental}</div></div>`:''}
-
-    <!-- Firme -->
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
-      <div>
-        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma Locatario</div>
-        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${clienteNome}</div>
-      </div>
-      <div>
-        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:24px">Firma per ${S.company_name||'D&D DedCar'}</div>
-        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div>
-      </div>
+    ${tblPagamenti}
     </div>
+    ${_buildFirmaHtml(clienteNome,'',S.company_name,S.footer_contract)}`
+  }];
+  // Pagina 2+: condizioni suddivise in pagine A4 reali
+  if(S.contract_header||S.contract_notes||S.contract_terms_rental){
+    // Firma riutilizzata in ogni pagina condizioni
+    const _firma=_buildFirmaHtml(clienteNome,'',S.company_name,S.footer_contract);
 
-    <!-- Footer -->
-    <div style="margin-top:24px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:10px;color:#94a3b8;text-align:center">
-      ${S.footer_contract||'D&amp;D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408 – Tel: +39 327 599 5090 – info@dedcar.it'}
-    </div>
+    // Intestazione ripetuta in ogni pagina condizioni
+    const _condHeader='<div style="font-size:10px;font-weight:700;text-transform:uppercase;'
+      +'letter-spacing:.08em;color:#2563eb;margin-bottom:10px;padding-bottom:5px;'
+      +'border-bottom:2px solid #2563eb">Contratto N\u00B0 '+num+' \u2014 Termini e Condizioni</div>';
 
-  </div>`);
+    // ── Approccio: misura altezza REALE dei paragrafi nel DOM ────────
+    // Renderizza tutto il testo in un div invisibile, poi sposta i paragrafi
+    // in pagine finché non supera l'altezza disponibile. Zero splitting manuale —
+    // è il browser che manda a capo, non noi.
+
+    // 1. Misura altezza disponibile per il .pdf-body in una pagina reale
+    // Metodo: inserisce una pagina reale nel DOM e misura il .pdf-body DIRETTAMENTE
+    // (non sottrae firma e padding — il flex fa già tutto il calcolo)
+    let BODY_H_PX = 600; // fallback
+    let BODY_W_PX = 530; // fallback (~178mm a 96dpi)
+    try {
+      const probe=document.createElement('div');
+      probe.className='pdf-page';
+      probe.style.cssText='visibility:hidden;position:fixed;top:-9999px;left:-9999px';
+      // Stessa struttura di una pagina reale con firma piena
+      probe.innerHTML=
+        '<div class="pdf-body" id="_pb_body" style="background:transparent"></div>'
+        +'<div class="pdf-firma" id="_pb_firma">'
+        +'<div style="display:grid;grid-template-columns:1fr 1fr;gap:20mm">'
+        +'<div><div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:14mm">Firma Locatario</div>'
+        +'<div style="border-bottom:1px solid #94a3b8;font-size:9px;color:#64748b">&nbsp;</div></div>'
+        +'<div style="text-align:right"><div style="font-size:9px;font-weight:700;color:#334155;margin-bottom:14mm">Per D&D</div>'
+        +'<div style="border-bottom:1px solid #94a3b8;font-size:9px;color:#64748b">&nbsp;</div></div>'
+        +'</div>'
+        +'<div style="margin-top:8px;font-size:8px;color:#94a3b8;text-align:center">footer</div>'
+        +'</div>';
+      document.body.appendChild(probe);
+      const bodyRect=probe.querySelector('#_pb_body').getBoundingClientRect();
+      BODY_H_PX=bodyRect.height;
+      BODY_W_PX=bodyRect.width;
+      if(BODY_H_PX<100) BODY_H_PX=600;
+      if(BODY_W_PX<100) BODY_W_PX=530;
+      document.body.removeChild(probe);
+    }catch(e){}
+
+    // Margine sicurezza: 92% per compensare eventuali margini interni ai paragrafi
+    const BODY_H_SAFE = BODY_H_PX * 0.92;
+
+    // 2. Costruisci l'HTML di TUTTI i paragrafi in un div misuratore invisibile
+    function buildParaHtml(text, isBold, isSection){
+      if(isSection) return '<div class="_cond_para _cond_sec" style="font-size:10px;font-weight:700;'
+        +'text-transform:uppercase;color:#64748b;margin:8px 0 3px;padding-bottom:2px;'
+        +'border-bottom:1px solid #e2e8f0">'+text+'</div>';
+      if(!text.trim()) return '<div class="_cond_para" style="font-size:10px;line-height:1.65;height:.6em"></div>';
+      return '<div class="_cond_para" style="font-size:10px;color:#334155;line-height:1.65;'
+        +(isBold?'font-weight:600;margin-top:3px;':'')+'">'+text+'</div>';
+    }
+
+    // Costruisce array di {html, testo originale}
+    const allParas=[];
+    function addSection(label){allParas.push({html:buildParaHtml(label,'',true),isSection:true});}
+    function addPara(txt,bold){allParas.push({html:buildParaHtml(txt,bold,false),isPara:true});}
+
+    if(S.contract_header){
+      addSection('Premessa');
+      S.contract_header.split('\n').forEach(l=>addPara(l,false));
+      addPara('',false);
+    }
+    if(S.contract_notes){
+      addSection('Note');
+      S.contract_notes.split('\n').forEach(l=>addPara(l,/^(\d+[\.\)]\s|Art\.\s|•\s|-\s)/.test(l.trim())));
+      addPara('',false);
+    }
+    if(S.contract_terms_rental){
+      addSection('Termini e Condizioni di Noleggio');
+      S.contract_terms_rental.split('\n').forEach(l=>addPara(l,/^(ART\.|Art\.|•\s|-\s)/.test(l.trim())));
+    }
+
+    // 3. Misura ogni paragrafo nel DOM alla larghezza reale del .pdf-body
+    const measurer=document.createElement('div');
+    measurer.style.cssText='visibility:hidden;position:fixed;top:-9999px;left:-9999px;'
+      +'width:'+BODY_W_PX+'px;font-family:Arial,Helvetica,sans-serif;box-sizing:border-box';
+    measurer.innerHTML=allParas.map(p=>p.html).join('');
+    document.body.appendChild(measurer);
+    const paraEls=measurer.querySelectorAll('._cond_para');
+    allParas.forEach((p,i)=>{
+      p.h=paraEls[i]?paraEls[i].getBoundingClientRect().height:16;
+    });
+    document.body.removeChild(measurer);
+
+    // 4. Distribuisce i paragrafi in chunk rispettando BODY_H_SAFE
+    // Misura l'altezza reale dell'intestazione condizioni
+    let HEADER_H=24;
+    try{
+      const hProbe=document.createElement('div');
+      hProbe.style.cssText='visibility:hidden;position:fixed;top:-9999px;left:-9999px;width:'+BODY_W_PX+'px';
+      hProbe.innerHTML=_condHeader;
+      document.body.appendChild(hProbe);
+      HEADER_H=hProbe.getBoundingClientRect().height+4; // +4px margine
+      document.body.removeChild(hProbe);
+    }catch(e){}
+    const chunks=[];
+    let chunk=[], usedH=HEADER_H; // prima pagina parte già con l'header occupato
+    for(const para of allParas){
+      const h=para.h||16;
+      if(usedH+h>BODY_H_SAFE && chunk.length>0){
+        chunks.push(chunk);
+        chunk=[para];
+        usedH=h;
+      } else {
+        chunk.push(para);
+        usedH+=h;
+      }
+    }
+    if(chunk.length) chunks.push(chunk);
+    if(!chunks.length) chunks.push([]);
+
+    // 5. Genera una pagina per ogni chunk
+    chunks.forEach(paras=>{
+      const bodyHtml=paras.map(p=>p.html).join('');
+      _pages.push({
+        cond: false,
+        html: _condHeader
+          +'<div class="pdf-body">'+bodyHtml+'</div>'
+          +_firma
+      });
+    });
+  }
+  openPdfPages(_pages);
 }
 
 function genPdfDdt(id){
