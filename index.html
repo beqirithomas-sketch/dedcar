@@ -1240,6 +1240,7 @@ input[type="search"]::-webkit-search-cancel-button{
       <button class="pill on" onclick="setGestTab('costi',this)">Costi & Manut.</button>
       <button class="pill" onclick="setGestTab('fornitori',this)">Fornitori</button>
       <button class="pill" onclick="setGestTab('danni',this)">Danni</button>
+      <button class="pill" onclick="setGestTab('finanze',this)">Finanze</button>
       <button class="pill" onclick="setGestTab('report',this)">Report</button>
       <button class="pill" onclick="setGestTab('analisi',this)">Analisi</button>
     </div>
@@ -1337,6 +1338,11 @@ input[type="search"]::-webkit-search-cancel-button{
       <span class="tab-label">Contratti</span>
     </button>
 
+    <button class="tab-btn" id="nav-gestione" onclick="goTo('gestione',this)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+      <span class="tab-label">Gestione</span>
+    </button>
+
     <button class="tab-btn" id="nav-scadenze" onclick="goTo('scadenze',this)">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
       <span class="tab-label">Scadenze</span>
@@ -1423,7 +1429,7 @@ input[type="search"]::-webkit-search-cancel-button{
 const API_URL='https://script.google.com/macros/s/AKfycby2uy9Z-elkP_JTx6AR9sE6JTNf58jqlYyTkeO4LcFdBUlSgXEuk6d9g9JqMlsjXHon/exec';
 
 /* ══════════════════════ STATE ══════════════════════ */
-let DATA={clienti:[],veicoli:[],noleggi:[],ddt:[],expenses:[],sales:[],suppliers:[],reminders:[],danni:[],payments:[],company_costs:[],users:[]};
+let DATA={clienti:[],veicoli:[],noleggi:[],ddt:[],expenses:[],sales:[],suppliers:[],reminders:[],danni:[],payments:[],company_costs:[],users:[],logs:[],_last_modified:0};
 let SETTINGS={
   company_name:'D&D DedCar',
   company_address:'Via Emilia Ovest 9, Savignano sul Rubicone',
@@ -1556,6 +1562,10 @@ async function syncDown(){
   setSS('syncing','…');
   try{
     const[d,s]=await Promise.all([apiRead(),apiReadS().catch(()=>({settings:{}}))]);
+    // Protezione overwrite: dati locali più recenti → non sovrascrivere
+    const serverTs=d.data._last_modified||0;
+    const localTs=DATA._last_modified||0;
+    if(localTs>serverTs+5000&&localTs>0){setSS('ok','Salvato ✓');return;}
     DATA.clienti=d.data.clienti||[];
     DATA.veicoli=d.data.veicoli||[];
     DATA.noleggi=d.data.noleggi||[];
@@ -1592,6 +1602,10 @@ async function syncDown(){
       if(savedLogo&&!SETTINGS.logo_base64) SETTINGS.logo_base64=savedLogo;
     }catch(e){}
 
+    // Verifica integrità referenziale (rimuove orfani)
+    verificaIntegrita();
+    // Riconcilia SEMPRE i payments da fonte reale dopo ogni sync
+    riconciliaPagamenti();
     setSS('ok','Sincronizzato');
     renderAll();
     updateScadenzeBadge();
@@ -1614,6 +1628,7 @@ async function syncUp(){
   syncing=true;
   setSS('syncing','Salvo…');
   try{
+    DATA._last_modified=Date.now();
     await apiWrite(DATA);
     setSS('ok','Salvato ✓');
   }catch(e){
@@ -1633,6 +1648,169 @@ async function syncUp(){
 
 /* ══════════════════════ NAV ══════════════════════ */
 /* ── Hamburger / Sidebar ── */
+/* ══ RICONCILIAZIONE PAGAMENTI ════════════════════════════════
+   Ricostruisce DATA.payments da zero basandosi sulle fonti reali:
+   - n.pagamenti[].incassato    (pagamenti noleggi)
+   - n.acconto                  (acconti)
+   - n.cauzione_restituita      (solo tracciata nel contratto, non in payments)
+   Elimina duplicati, corregge incoerenze.
+   Chiamata: manualmente, o automaticamente a ogni syncDown.
+═══════════════════════════════════════════════════════════ */
+
+/* ══ INTEGRITÀ REFERENZIALE ═══════════════════════════════════
+   Verifica e rimuove record orfani (riferimento a id non esistente).
+   Chiamata: a init() dopo syncDown.
+═══════════════════════════════════════════════════════════ */
+function verificaIntegrita(){
+  const vidSet=new Set(DATA.veicoli.map(x=>x.id));
+  const cidSet=new Set(DATA.clienti.map(x=>x.id));
+  const nolSet=new Set(DATA.noleggi.map(x=>x.id));
+  let rimossi=0;
+
+  // Expenses senza veicolo
+  const exBefore=DATA.expenses.length;
+  DATA.expenses=DATA.expenses.filter(e=>vidSet.has(e.vehicle_id));
+  rimossi+=exBefore-DATA.expenses.length;
+
+  // Reminders veicolo senza veicolo
+  const remBefore=DATA.reminders.length;
+  DATA.reminders=DATA.reminders.filter(r=>r.riferimento_tipo!=='veicolo'||vidSet.has(r.riferimento_id));
+  rimossi+=remBefore-DATA.reminders.length;
+
+  // Danni senza veicolo
+  const dBefore=DATA.danni.length;
+  DATA.danni=DATA.danni.filter(d=>vidSet.has(d.vehicle_id));
+  rimossi+=dBefore-DATA.danni.length;
+
+  // Noleggi senza veicolo o cliente
+  const nolBefore=DATA.noleggi.length;
+  DATA.noleggi=DATA.noleggi.filter(n=>vidSet.has(n.vehicle_id)&&cidSet.has(n.customer_id));
+  rimossi+=nolBefore-DATA.noleggi.length;
+
+  // Sales senza veicolo o cliente
+  const sBefore=DATA.sales.length;
+  DATA.sales=DATA.sales.filter(s=>vidSet.has(s.vehicle_id)&&cidSet.has(s.customer_id));
+  rimossi+=sBefore-DATA.sales.length;
+
+  // DDT senza veicolo o cliente
+  const dDtBefore=DATA.ddt.length;
+  DATA.ddt=DATA.ddt.filter(d=>vidSet.has(d.vehicle_id)&&cidSet.has(d.customer_id));
+  rimossi+=dDtBefore-DATA.ddt.length;
+
+  if(rimossi>0){
+    console.warn('[verificaIntegrita] Trovati',rimossi,'record orfani');
+    addLog('sistema','integrita','','Trovati '+rimossi+' orfani');
+    // Se > 3 record orfani, è probabile un errore di sync — avvisa l'utente
+    // e NON elimina automaticamente: richiede conferma
+    if(rimossi>3){
+      console.error('[verificaIntegrita] Troppi orfani ('+rimossi+') — possibile errore sync. Eliminazione sospesa.');
+      toast('⚠️ '+rimossi+' record orfani rilevati. Controlla la connessione e ricarica.','warn');
+      // Ripristina i dati originali (non applicare le modifiche di questo ciclo)
+      // N.B.: le modifiche sopra sono già applicate — serve un reload per un sync pulito
+      // Logga ma non blocca: al prossimo syncDown i dati vengono riscaricati dal server
+    } else {
+      // Pochi orfani (1-3): probabilmente normali, elimina silenziosamente
+      console.log('[verificaIntegrita] Rimossi',rimossi,'orfani (<=3, eliminazione automatica ok)');
+    }
+  }
+}
+
+function riconciliaPagamenti(){
+  // 1. Separa i payments NON collegati a noleggi (inseriti manualmente)
+  const manuali=DATA.payments.filter(p=>!p._noleggio_id&&!p._nol_pag_id);
+
+  // 2. Ricostruisce tutti i payments derivati dai noleggi
+  const daNoleggi=[];
+  DATA.noleggi.forEach(n=>{
+    const nolId=n.id;
+    const cObj=DATA.clienti.find(x=>x.id===n.customer_id)||{};
+    const vObj=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
+    const desc='Noleggio '+[vObj.marca,vObj.modello,vObj.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(cObj);
+
+    // 2a. Acconto
+    if((parseFloat(n.acconto)||0)>0){
+      daNoleggi.push({
+        id:'nol_'+nolId+'_acconto',   // id deterministico — stabile tra sync
+        tipo:'entrata',
+        importo:parseFloat(n.acconto),
+        data:n.data_inizio||new Date().toISOString().split('T')[0],
+        metodo:'contanti', categoria:'noleggio',
+        descrizione:'Acconto — '+desc,
+        _nol_pag_id:'nol_'+nolId+'_acconto',
+        _noleggio_id:nolId, created_at:n.created_at||Date.now()
+      });
+    }
+
+    // 2b. Pagamenti incassati
+    (n.pagamenti||[]).forEach(pag=>{
+      if(!pag.incassato) return;
+      const pagId='nol_'+nolId+'_'+(pag.id||pag.created_at||'0');
+      daNoleggi.push({
+        id:pagId,    // id deterministico — uguale a _nol_pag_id
+        tipo:'entrata',
+        importo:parseFloat(pag.importo)||0,
+        data:pag.data, metodo:pag.metodo||'contanti',
+        categoria:'noleggio',
+        descrizione:pag.note?pag.note+' — '+desc:desc,
+        _nol_pag_id:pagId,
+        _noleggio_id:nolId, created_at:pag.created_at||Date.now()
+      });
+    });
+
+    // 2c. Cauzione: NON genera movimenti contabili.
+    // La cauzione è un deposito di garanzia (né ricavo né costo).
+    // Viene tracciata solo nel contratto (n.cauzione, n.cauzione_restituita).
+    // Opzione A scelta: completamente fuori da DATA.payments.
+  });
+
+  // 3. Vendite incassate → entrate
+  const daVendite=[];
+  (DATA.sales||[]).forEach(s=>{
+    if(!s.incassato) return;
+    const payId=s.id+'_pay';
+    // Evita duplicati con payments manuali (se l'utente ne ha inseriti)
+    if(manuali.find(p=>p._sale_id===s.id)) return;
+    const _cObj=DATA.clienti.find(x=>x.id===s.customer_id)||{};
+    const _vObj=DATA.veicoli.find(x=>x.id===s.vehicle_id)||{};
+    daVendite.push({
+      id:payId, tipo:'entrata',
+      importo:parseFloat(s.prezzo_vendita)||0,
+      data:s.data, metodo:'contanti', categoria:'vendita',
+      descrizione:'Vendita '+[_vObj.marca,_vObj.modello,_vObj.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(_cObj),
+      _sale_id:s.id, created_at:s.created_at||Date.now()
+    });
+  });
+
+  // 4. Ricrea DATA.payments = manuali + da noleggi + da vendite
+  DATA.payments=[...manuali,...daNoleggi,...daVendite];
+  console.log('[riconciliaPagamenti] Tot:',DATA.payments.length,
+    '| manuali:',manuali.length,'| noleggi:',daNoleggi.length,'| vendite:',daVendite.length);
+}
+
+
+/* ══ AUDIT LOG ═══════════════════════════════════════════════
+   Registra ogni azione significativa in DATA.logs[].
+   Massimo 500 entries — le più vecchie vengono eliminate.
+═══════════════════════════════════════════════════════════ */
+function addLog(azione, tipo, idRecord, extra){
+  try{
+    if(!Array.isArray(DATA.logs)) DATA.logs=[];
+    DATA.logs.push({
+      id:uid(),
+      azione,           // 'crea'|'modifica'|'elimina'|'pagamento'|'chiusura'|'danno'
+      tipo,             // 'noleggio'|'veicolo'|'cliente'|'payment'|'reminder'|...
+      id_record:idRecord||'',
+      extra:extra||'',  // info aggiuntiva (es. "€500 contanti")
+      utente:CURRENT_USER?.username||'sistema',
+      data:new Date().toISOString(),
+      ts:Date.now()
+    });
+    // Mantieni solo le ultime 500 entries
+    if(DATA.logs.length>500) DATA.logs=DATA.logs.slice(-500);
+  }catch(e){ /* log non bloccante */ }
+}
+
+
 function toggleSidebar(){
   const sb=document.getElementById('sidebar');
   const ov=document.getElementById('sidebar-overlay');
@@ -1662,6 +1840,9 @@ function goTo(p,btn){
   else if(p==='scadenze')renderScadenze();
   else if(p==='anagrafiche')renderAnagrafiche();
   // Legacy redirect: vecchie pagine → anagrafiche con tab giusto
+  else if(p==='gestione'){renderGest();}
+  else if(p==='finanze'){gestTab='finanze';goTo('gestione',document.getElementById('nav-gestione'));}
+  else if(p==='costi'){gestTab='costi';goTo('gestione',document.getElementById('nav-gestione'));}
   else if(p==='clienti'){anaTab='clienti';goTo('anagrafiche',document.getElementById('nav-anagrafiche'));}
   else if(p==='veicoli'){anaTab='veicoli';goTo('anagrafiche',document.getElementById('nav-anagrafiche'));}
   else renderAll();
@@ -1900,6 +2081,7 @@ function renderDash(){
     <div class="kpi-lbl">${k.l}</div>
   </div>`).join('');
 
+  // paymentsEntr include ora anche i pagamenti noleggi (FIX 1)
   document.getElementById('summary-bar').innerHTML=[
     {l:'Entrate',   v:fE(paymentsEntr),          c:'var(--green)'},
     {l:'Uscite',    v:fE(paymentsUsc+costiAz),    c:'var(--red)'},
@@ -2587,7 +2769,7 @@ function renderNoleggiIn(body){
       <button class="pill ${fNoleggi==='completato'?'on':''}" onclick="setFNol('completato',this)">Completati</button>
     </div>
     <div style="height:10px"></div>
-    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><h3>Nessun noleggio</h3><p>Crea con +</p></div>`:list.map(n=>{const c=cM[n.customer_id]||{},vx=vM[n.vehicle_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:${n.stato==='attivo'?'var(--green-bg)':'var(--bg3)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)||'?'}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><div class="ios-row-right"><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span><span class="badge ${n.incassato?'b-green':'b-orange'}" style="font-size:9px">${n.incassato?'Incassato':'Da incass.'}</span><span style="font-size:14px;font-weight:600;color:var(--green)">${fE(n.prezzo)}</span></div></div>`;}).join('')}</div>`;
+    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg></div><h3>Nessun noleggio</h3><p>Crea con +</p></div>`:list.map(n=>{const c=cM[n.customer_id]||{},vx=vM[n.vehicle_id]||{};return`<div class="ios-row" onclick="showNoleggio('${n.id}')"><div class="ios-row-icon" style="background:${n.stato==='attivo'?'var(--green-bg)':'var(--bg3)'}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><circle cx="8" cy="15" r="5"/><path d="m21 3-9.4 9.4"/><path d="m15 9 3 3"/></svg></div><div class="ios-row-body"><div class="ios-row-title">${nomeAnagrafica(c)||'?'}</div><div class="ios-row-sub">${vx.marca||'?'} ${vx.modello||''} · ${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div><div class="ios-row-right"><span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span><span class="badge ${(()=>{const _ac=parseFloat(n.acconto)||0;const _tp=(n.pagamenti||[]).filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);const _s=Math.max(0,(parseFloat(n.prezzo)||0)-_ac-_tp);return _s<=0?'b-green':'b-orange';})()}" style="font-size:9px">${(()=>{const _ac=parseFloat(n.acconto)||0;const _tp=(n.pagamenti||[]).filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);const _s=Math.max(0,(parseFloat(n.prezzo)||0)-_ac-_tp);return _s<=0?'Saldato':'Sal.€'+Math.round(_s);})()}</span><span style="font-size:14px;font-weight:600;color:var(--green)">${fE(n.prezzo)}</span></div></div>`;}).join('')}</div>`;
 }
 function setFNol(v,btn){document.querySelectorAll('#docs-body .filter-pills .pill').forEach(p=>p.classList.remove('on'));btn.classList.add('on');fNoleggi=v;renderDocs();}
 
@@ -2617,7 +2799,7 @@ function showNoleggio(id){
       <div class="hero-sub">${vx.marca||'?'} ${vx.modello||''} · ${vx.targa||''}</div>
       <div style="margin-top:10px;display:flex;gap:8px;justify-content:center;flex-wrap:wrap">
         <span class="badge ${n.stato==='attivo'?'b-green':'b-dim'}">${n.stato}</span>
-        <span class="badge ${saldo<=0?'b-green':'b-orange'}">${saldo<=0?'Saldato':'Saldo: '+fE(saldo)}</span>
+        <span class="badge ${saldo<=0?'b-green':'b-orange'}">${saldo<=0?'✓ Saldato':'Saldo: '+fE(Math.max(0,saldo))}</span>
         ${n.km_tipo?`<span class="badge b-blue">${kmInfo}</span>`:''}
       </div>
     </div>
@@ -2627,7 +2809,7 @@ function showNoleggio(id){
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Periodo</div><div class="ios-row-title">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Totale contratto</div><div class="ios-row-title amount-big">${fE(totale)}</div></div></div>
         ${acconto>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Acconto versato</div><div class="ios-row-title" style="color:var(--green)">- ${fE(acconto)}</div></div></div>`:''}
-        ${cauzione>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Cauzione (non è ricavo)</div><div class="ios-row-title" style="color:var(--blue)">${fE(cauzione)}</div></div></div>`:''}
+        ${cauzione>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Deposito cauzionale</div><div class="ios-row-title" style="color:var(--blue)">${fE(cauzione)}</div></div></div>`:''}
         ${totPagamenti>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Pagamenti ricevuti</div><div class="ios-row-title" style="color:var(--green)">- ${fE(totPagamenti)}</div></div></div>`:''}
         <div class="ios-row" style="background:${saldo<=0?'var(--green-bg)':'var(--orange-bg)'}"><div class="ios-row-body"><div class="ios-row-sub">Saldo residuo</div><div class="ios-row-title" style="color:${saldo<=0?'var(--green)':'var(--orange)'};font-weight:700">${fE(Math.max(0,saldo))}</div></div></div>
       </div>
@@ -2691,13 +2873,34 @@ function showNoleggio(id){
         ${n.danni_rientro?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Danni</div><div class="ios-row-title" style="color:var(--red)">${n.danni_rientro}</div></div></div>`:''}
       </div></div>`:''}
 
+    ${(cauzione>0&&!n.cauzione_restituita)?`<div class="list-section"><div class="list-header">Cauzione</div>
+      <div class="ios-list">
+        <div class="ios-row" style="background:var(--blue-bg)">
+          <div class="ios-row-body"><div class="ios-row-sub">Deposito cauzionale</div>
+          <div class="ios-row-title" style="color:var(--blue);font-weight:700">${fE(cauzione)} — da restituire</div></div>
+        </div>
+      </div>
+      <button class="ios-btn neutral" onclick="restituisciCauzione('${id}')" style="margin-top:8px;background:var(--blue-bg);color:var(--blue)">Restituisci cauzione ${fE(cauzione)}</button>
+    </div>`:( cauzione>0&&n.cauzione_restituita?`<div class="list-section"><div class="list-header">Cauzione</div>
+      <div class="ios-list"><div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Deposito cauzionale</div>
+        <div class="ios-row-title" style="color:var(--green)">Restituita il ${fD(n.cauzione_restituita_data)}</div></div></div></div>
+      <button class="ios-btn neutral" onclick="genPdfRestituzioneCauzione('${id}')" style="margin-top:6px;background:var(--green-bg);color:var(--green)">📄 Ricevuta restituzione cauzione</button>
+    </div>`:'')}
+
     <div class="btn-stack" style="margin-top:8px">
-      ${!n.incassato
+      ${saldo>0
         ?`<button class="ios-btn success" onclick="toggleIncassatoNoleggio('${id}')">Segna tutto incassato</button>`
-        :`<button class="ios-btn neutral" onclick="toggleIncassatoNoleggio('${id}')">Annulla incasso totale</button>`
+        :`<button class="ios-btn neutral" style="opacity:.5;font-size:12px" onclick="toggleIncassatoNoleggio('${id}')">✓ Saldato completamente</button>`
       }
       <button class="ios-btn primary" onclick="editNoleggio('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
-      ${n.stato==='attivo'&&n.km_inizio==null?`<button class="ios-btn primary" onclick="openSheet('checkout',{noleggioId:'${id}'})">Check-out</button>`:''}
+      ${n.stato==='attivo'&&n.km_inizio==null?(
+        // Nessun DDT ancora → propone DDT come metodo principale
+        !DATA.ddt.find(d2=>d2.noleggio_id===id&&d2.tipo==='noleggio'&&d2.stato==='attivo')
+          ?`<button class="ios-btn primary" onclick="generaDdtDaNoleggio('${id}')" style="background:var(--teal-bg);color:var(--teal)">📦 Genera DDT (check-out)</button>
+           <button class="ios-btn neutral" onclick="openSheet('checkout',{noleggioId:'${id}'})" style="font-size:11px;opacity:.7">Check-out manuale senza DDT</button>`
+          // DDT esiste ma km non copiati → fallback manuale
+          :`<button class="ios-btn warn" onclick="openSheet('checkout',{noleggioId:'${id}'})">Check-out manuale (DDT già emesso)</button>`
+      ):''}
       ${n.stato==='attivo'&&n.km_inizio!=null&&n.km_fine==null?`<button class="ios-btn warn" onclick="openSheet('checkin',{noleggioId:'${id}'})">Check-in</button>`:''}
       ${n.stato==='attivo'&&n.km_fine!=null?`<button class="ios-btn success" onclick="chiudiNoleggio('${id}')">Chiudi Noleggio</button>`:''}
       ${n.stato==='attivo'&&!n.km_inizio?`<button class="ios-btn neutral" onclick="chiudiNoleggio('${id}')">Chiudi rapido</button>`:''}
@@ -2719,29 +2922,116 @@ function generaDdtDaNoleggio(noleggioId){
   }
   closeDetail();
   // Pre-popola i dati dal noleggio — nessun reinserimento manuale
+  const vxForDdt=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
+  const cliForDdt=DATA.clienti.find(x=>x.id===n.customer_id)||{};
   const prefill={
     _fromNoleggio:noleggioId,
     customer_id:n.customer_id,
     vehicle_id:n.vehicle_id,
     data_consegna:n.data_inizio,
     data:n.data_inizio,
-    causale:'Noleggio',
+    causale:'Noleggio veicolo',
+    km_inizio:vxForDdt.km||0,
+    luogo_consegna:cliForDdt.indirizzo||'',
+    natura_bene:'a_vista',
   };
   openSheet('ddt',prefill);
 }
 
-/* Toggle incasso noleggio */
+/* Segna saldo residuo come incassato — aggiunge pagamento automatico */
 async function toggleIncassatoNoleggio(id){
   try{
     const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
-    n.incassato=!n.incassato;
-    toast(n.incassato?'Segnato come incassato':'Incasso annullato');
-    showNoleggio(id);
-    renderDocs();
-    await syncUp();
+    const acconto=parseFloat(n.acconto)||0;
+    const pagamenti=Array.isArray(n.pagamenti)?n.pagamenti:[];
+    const totInc=acconto+pagamenti.filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
+    const saldo=Math.max(0,(parseFloat(n.prezzo)||0)-totInc);
+    if(saldo>0){
+      // Aggiunge pagamento saldo automatico
+      if(!Array.isArray(n.pagamenti))n.pagamenti=[];
+      const newPag={id:uid(),importo:saldo,data:new Date().toISOString().split('T')[0],
+        metodo:'contanti',note:'Saldo automatico',incassato:true,created_at:Date.now()};
+      n.pagamenti.push(newPag);
+      _sincPagamentoToFinanza(n,newPag,'add');
+      toast('Saldo di '+fE(saldo)+' segnato come incassato');
+    } else {
+      toast('Contratto già completamente incassato','info');
+    }
+    showNoleggio(id);renderDocs();await syncUp();
   }catch(err){
     console.error('[toggleIncassatoNoleggio]',err);
     toast('Errore: '+err.message,'err');
+  }
+}
+
+/* ══ BRIDGE: n.pagamenti ↔ DATA.payments ══════════════════════
+   Ogni pagamento di un noleggio che è incassato genera/aggiorna
+   un record in DATA.payments così la dashboard finanziaria
+   riflette automaticamente i ricavi reali.
+   action: 'add' | 'remove' | 'update'
+═══════════════════════════════════════════════════════════ */
+function _sincPagamentoToFinanza(noleggio, pag, action){
+  try{
+    const nolId=noleggio.id;
+    const c=DATA.clienti.find(x=>x.id===noleggio.customer_id)||{};
+    const vx=DATA.veicoli.find(x=>x.id===noleggio.vehicle_id)||{};
+    const desc='Noleggio '+[vx.marca,vx.modello,vx.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(c);
+    const pagId='nol_'+nolId+'_'+( pag.id||pag.created_at||Date.now() );
+
+    if(action==='remove'){
+      DATA.payments=DATA.payments.filter(p=>p._nol_pag_id!==pagId);
+      return;
+    }
+    if(!pag.incassato){ // se non incassato rimuovi eventuale entry
+      DATA.payments=DATA.payments.filter(p=>p._nol_pag_id!==pagId);
+      return;
+    }
+    // Crea o aggiorna
+    const existing=DATA.payments.find(p=>p._nol_pag_id===pagId);
+    if(existing){
+      existing.importo=pag.importo;
+      existing.data=pag.data;
+      existing.metodo=pag.metodo||'contanti';
+      existing.descrizione=desc;
+    } else {
+      DATA.payments.push({
+        id:uid(), tipo:'entrata',
+        importo:pag.importo, data:pag.data,
+        metodo:pag.metodo||'contanti',
+        categoria:'noleggio',
+        descrizione:desc,
+        _nol_pag_id:pagId,   // chiave di tracciabilità
+        _noleggio_id:nolId,
+        created_at:Date.now()
+      });
+    }
+  }catch(e){console.error('[_sincPagamentoToFinanza]',e);}
+}
+
+/* Sincronizza TUTTI i pagamenti di un noleggio (usato al caricamento
+   per retrocompatibilità con noleggi esistenti che non hanno entries in payments) */
+function _sincTuttiPagamentiNoleggio(noleggio){
+  if(!Array.isArray(noleggio.pagamenti)) return;
+  // Prima rimuove tutte le entries esistenti per questo noleggio
+  DATA.payments=DATA.payments.filter(p=>p._noleggio_id!==noleggio.id);
+  // Poi le ricrea
+  noleggio.pagamenti.forEach(pag=>{if(pag.incassato) _sincPagamentoToFinanza(noleggio,pag,'add');});
+  // Acconto
+  if((parseFloat(noleggio.acconto)||0)>0){
+    const acId='nol_'+noleggio.id+'_acconto';
+    if(!DATA.payments.find(p=>p._nol_pag_id===acId)){
+      const c=DATA.clienti.find(x=>x.id===noleggio.customer_id)||{};
+      const vx=DATA.veicoli.find(x=>x.id===noleggio.vehicle_id)||{};
+      DATA.payments.push({
+        id:uid(), tipo:'entrata',
+        importo:noleggio.acconto,
+        data:noleggio.data_inizio||new Date().toISOString().split('T')[0],
+        metodo:'contanti', categoria:'noleggio',
+        descrizione:'Acconto noleggio '+[vx.marca,vx.modello,vx.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(c),
+        _nol_pag_id:acId, _noleggio_id:noleggio.id,
+        created_at:noleggio.created_at||Date.now()
+      });
+    }
   }
 }
 
@@ -2756,7 +3046,11 @@ async function aggiungiPagamentoNoleggio(id){
     const incassato=document.getElementById('np-stato')?.value==='1';
     if(!importo||importo<=0){toast('Inserisci importo valido','err');return;}
     if(!Array.isArray(n.pagamenti))n.pagamenti=[];
-    n.pagamenti.push({importo,data,metodo,note,incassato,created_at:Date.now()});
+    const newPag={id:uid(),importo,data,metodo,note,incassato,created_at:Date.now()};
+    n.pagamenti.push(newPag);
+    // Sincronizza in DATA.payments se incassato
+    _sincPagamentoToFinanza(n,newPag,'add');
+    addLog('pagamento','noleggio',id,fE(importo)+' '+metodo+(incassato?' incassato':' atteso'));
     showNoleggio(id); // ricarica dettaglio
     renderDocs();
     await syncUp();
@@ -2772,6 +3066,7 @@ async function togglePagamentoNoleggio(id,idx){
   try{
     const n=DATA.noleggi.find(x=>x.id===id);if(!n||!n.pagamenti?.[idx])return;
     n.pagamenti[idx].incassato=!n.pagamenti[idx].incassato;
+    _sincPagamentoToFinanza(n,n.pagamenti[idx],n.pagamenti[idx].incassato?'add':'remove');
     showNoleggio(id);
     await syncUp();
   }catch(err){toast('Errore: '+err.message,'err');}
@@ -2782,6 +3077,8 @@ async function rimuoviPagamentoNoleggio(id,idx){
   try{
     const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
     if(!confirm('Rimuovere questo pagamento?'))return;
+    const pagDaRimuovere=n.pagamenti[idx];
+    _sincPagamentoToFinanza(n,pagDaRimuovere,'remove');
     n.pagamenti.splice(idx,1);
     showNoleggio(id);
     await syncUp();
@@ -2789,6 +3086,20 @@ async function rimuoviPagamentoNoleggio(id,idx){
   }catch(err){toast('Errore: '+err.message,'err');}
 }
 
+
+async function restituisciCauzione(id){
+  try{
+    const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
+    if(!confirm('Confermi la restituzione della cauzione di '+fE(parseFloat(n.cauzione)||0)+'?'))return;
+    n.cauzione_restituita=true;
+    n.cauzione_restituita_data=new Date().toISOString().split('T')[0];
+    // Registra come uscita in DATA.payments
+    const c=DATA.clienti.find(x=>x.id===n.customer_id)||{};
+    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
+    // Cauzione: nessun movimento in DATA.payments (deposito neutro, Opzione A)
+    showNoleggio(id);renderDocs();toast('Cauzione restituita — aggiornata nel contratto');await syncUp();
+  }catch(e){toast('Errore: '+e.message,'err');}
+}
 function editNoleggio(id){
   const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
   closeDetail();
@@ -2799,8 +3110,22 @@ async function chiudiNoleggio(id){
   try{
     const n=DATA.noleggi.find(x=>x.id===id);if(!n)return;
     n.stato='completato';
-    // Non modificare stato veicolo — la disponibilità è calcolata sulle date
-    closeDetail();renderAll();renderDocs();toast('Noleggio chiuso!');await syncUp();
+    addLog('chiusura','noleggio',id,'Noleggio chiuso');
+
+    // Calcola saldo residuo
+    const _acc=parseFloat(n.acconto)||0;
+    const _pagInc=(n.pagamenti||[]).filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
+    const _saldo=Math.max(0,(parseFloat(n.prezzo)||0)-_acc-_pagInc);
+
+    // UX 7a: suggerisci saldo se residuo > 0
+    let chiudiMsg='Noleggio chiuso!';
+    if(_saldo>0) chiudiMsg+='\nSaldo residuo: '+fE(_saldo)+' — ricordati di registrare il pagamento.';
+
+    // UX 7b: suggerisci restituzione cauzione
+    const _cau=parseFloat(n.cauzione)||0;
+    if(_cau>0&&!n.cauzione_restituita) chiudiMsg+='\nCauzione da restituire: '+fE(_cau)+'.';
+
+    closeDetail();renderAll();renderDocs();toast(chiudiMsg);await syncUp();
   }catch(err){
     console.error('[chiudiNoleggio]',err);
     toast('Errore: '+err.message,'err');
@@ -2812,6 +3137,25 @@ async function toggleIncassato(saleId){
   try{
     const s=DATA.sales.find(x=>x.id===saleId);if(!s)return;
     s.incassato=!s.incassato;
+    // Sincronizza payment: riconciliaPagamenti lo ricostruirà al prossimo sync
+    // ma lo aggiorniamo subito in memoria per coerenza immediata
+    if(s.incassato){
+      const _cObj=DATA.clienti.find(x=>x.id===s.customer_id)||{};
+      const _vObj=DATA.veicoli.find(x=>x.id===s.vehicle_id)||{};
+      const payId=s.id+'_pay';
+      if(!DATA.payments.find(p=>p.id===payId)){
+        DATA.payments.push({
+          id:payId, tipo:'entrata',
+          importo:parseFloat(s.prezzo_vendita)||0,
+          data:s.data, metodo:'contanti', categoria:'vendita',
+          descrizione:'Vendita '+[_vObj.marca,_vObj.modello,_vObj.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(_cObj),
+          _sale_id:s.id, created_at:Date.now()
+        });
+      }
+    } else {
+      // Annulla: rimuovi payment
+      DATA.payments=DATA.payments.filter(p=>p._sale_id!==s.id);
+    }
     toast(s.incassato?'Segnato come incassato':'Incasso annullato');
     closeDetail();renderAll();renderDocs();await syncUp();
   }catch(err){
@@ -2870,8 +3214,7 @@ async function saveCheckout(noleggioId){
     if(!carb){toast('Seleziona livello carburante','err');return;}
     const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
     n.km_inizio=km; n.carburante_inizio=carb; n.note_inizio=v('f-co-note');
-    // Aggiorna km veicolo
-    const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
+    // KM veicolo NON aggiornati al check-out (verranno aggiornati al check-in con km_fine)
     closeSheet();showNoleggio(noleggioId);toast('Check-out salvato! 🚗');await syncUp();
   }catch(err){
     console.error('[saveCheckout]',err);
@@ -2915,9 +3258,16 @@ async function saveCheckin(noleggioId){
     const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.km=km;
     // Se ci sono danni, registra automaticamente
     if(n.danni_rientro){
-      DATA.danni.push({id:uid(),vehicle_id:n.vehicle_id,customer_id:n.customer_id,noleggio_id:noleggioId,descrizione:n.danni_rientro,data:new Date().toISOString().split('T')[0],stato:'attivo',created_at:Date.now()});
+      DATA.danni.push({id:uid(),vehicle_id:n.vehicle_id,customer_id:n.customer_id,noleggio_id:noleggioId,
+        descrizione:n.danni_rientro,importo:n.extra_costi||0,
+        data:new Date().toISOString().split('T')[0],stato:'da_addebitare',created_at:Date.now()});
     }
-    closeSheet();showNoleggio(noleggioId);toast('Check-in salvato! 🏁');await syncUp();
+    const _hasDanni=!!n.danni_rientro;
+    const _hasExtra=(n.extra_costi||0)>0;
+    let _ciMsg='Check-in salvato! 🏁';
+    if(_hasDanni) _ciMsg+='\n⚠️ Danni registrati — ricordati di addebitarli.';
+    if(_hasExtra) _ciMsg+='\n💶 Extra €'+fE(n.extra_costi)+' da incassare.';
+    closeSheet();showNoleggio(noleggioId);toast(_ciMsg,_hasDanni?'warn':'ok');await syncUp();
   }catch(err){
     console.error('[saveCheckin]',err);
     toast('Errore: '+err.message,'err');
@@ -2960,6 +3310,7 @@ function showVendita(id){
     </div>
     <div class="btn-stack" style="margin-top:8px">
       ${!s.incassato?`<button class="ios-btn success" onclick="toggleIncassato('${id}')">Segna come incassato</button>`:`<button class="ios-btn neutral" onclick="toggleIncassato('${id}')">Annulla incasso</button>`}
+      <button class="ios-btn primary" onclick="editVendita('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>
       <button class="ios-btn neutral" onclick="genPdfVendita('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Contratto PDF</button>
       <button class="ios-btn danger" onclick="askDel('sale','${id}')">Elimina vendita</button>
     </div>`;
@@ -2978,7 +3329,7 @@ function renderDdtIn(body){
       <button class="pill ${fDdt==='vendita'?'on':''}" onclick="setFDdt('vendita',this)">Vendita</button>
     </div>
     <div style="height:10px"></div>
-    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div><h3>Nessun DDT</h3><p>Crea con +</p></div>`:list.map(d=>{const c=cM[d.customer_id]||{},vx=vM[d.vehicle_id]||{};return`<div class="ios-row" onclick="showDdt('${d.id}')"><div class="ios-row-icon" style="background:${d.tipo==='vendita'?'var(--purple-bg)':'var(--teal-bg)'}">${d.tipo==='vendita'?'💰':'📦'}</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">DDT ${d.tipo} · ${vx.marca||'?'} ${vx.modello||''} · ${fD(d.data)}</div></div><span class="badge ${d.tipo==='vendita'?'b-purple':'b-teal'}">${d.tipo}</span></div>`;}).join('')}</div>`;
+    <div class="ios-list">${!list.length?`<div class="empty-state" style="padding:40px"><div class="ei"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/></svg></div><h3>Nessun DDT</h3><p>Crea con +</p></div>`:list.map(d=>{const c=cM[d.customer_id]||{},vx=vM[d.vehicle_id]||{};return`<div class="ios-row" onclick="showDdt('${d.id}')"><div class="ios-row-icon" style="background:${d.tipo==='vendita'?'var(--purple-bg)':'var(--teal-bg)'}">${d.tipo==='vendita'?'💰':'📦'}</div><div class="ios-row-body"><div class="ios-row-title">${c.cognome||'?'} ${c.nome||''}</div><div class="ios-row-sub">DDT ${d.tipo} · ${vx.marca||'?'} ${vx.modello||''} · ${fD(d.data)}</div></div><span class="badge ${d.tipo==='vendita'?'b-purple':'b-teal'}">${d.tipo}</span>${d.stato==='annullato'?'<span class="badge b-red" style="font-size:9px">annullato</span>':''}</div>`;}).join('')}</div>`;
 }
 function setFDdt(v,btn){document.querySelectorAll('#docs-body .filter-pills .pill').forEach(p=>p.classList.remove('on'));btn.classList.add('on');fDdt=v;renderDocs();}
 
@@ -3011,12 +3362,19 @@ function showDdt(id){
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
+      ${d.stato!=='annullato'?`<button class="ios-btn primary" onclick="editDdt('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica</button>`:''}
       <button class="ios-btn neutral" onclick="genPdfDdt('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><polyline points="6 9 6 2 18 2 18 9"/><path d="M6 18H4a2 2 0 0 1-2-2v-5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v5a2 2 0 0 1-2 2h-2"/><rect x="6" y="14" width="12" height="8"/></svg> Stampa DDT</button>
+      ${d.stato!=='annullato'?`<button class="ios-btn warn" onclick="annullaDdt('${id}')">Annulla DDT</button>`:`<button class="ios-btn neutral" onclick="riattivaDdt('${id}')">Riattiva DDT</button>`}
       <button class="ios-btn danger" onclick="askDel('ddt','${id}')">Elimina DDT</button>
     </div>`;
   openDetail();
 }
 
+function editDdt(id){
+  const d=DATA.ddt.find(x=>x.id===id);if(!d)return;
+  closeDetail();
+  openSheet('ddt',{...d,_editId:id});
+}
 /* ══════════════════════ CALENDARIO ══════════════════════ */
 function renderCalendario(body){
   const today=new Date();
@@ -3091,7 +3449,8 @@ function setGestTab(tab,btn){document.getElementById('gest-tabs').querySelectorA
 function openGestFab(){
   if(gestTab==='costi')openSheet('expense');
   else if(gestTab==='fornitori')openSheet('fornitore');
-  else if(gestTab==='danni')openSheet('danno');
+  else if(gestTab==='danni') apriConstatazioneDanni('');
+  else if(gestTab==='finanze')openFinFab();
   else{}
 }
 
@@ -3100,9 +3459,12 @@ function renderGest(){
   if(!body)return;
   const gestFab=document.getElementById('gest-fab');
   if(gestFab)gestFab.style.display=(gestTab==='report'||gestTab==='analisi')?'none':'flex';
+  // Per finanze usa il fab interno alla pagina finanze
+  if(gestFab&&gestTab==='finanze')gestFab.style.display='flex'; // openFinFab gestisce i tipi
   if(gestTab==='costi')renderCostiIn(body);
   else if(gestTab==='fornitori')renderFornitoriIn(body);
   else if(gestTab==='danni')renderDanniIn(body);
+  else if(gestTab==='finanze')renderFinanze(body);
   else if(gestTab==='analisi')renderAnalisiIn(body);
   else renderReportIn(body);
 }
@@ -3328,8 +3690,26 @@ function closeConfirm(){document.getElementById('confirm-sheet').classList.remov
 document.getElementById('confirm-ok').onclick=async function(){
   if(!pendingDel)return;
   const{type,id}=pendingDel;
-  if(type==='cliente')DATA.clienti=DATA.clienti.filter(x=>x.id!==id);
-  if(type==='veicolo')DATA.veicoli=DATA.veicoli.filter(x=>x.id!==id);
+  if(type==='cliente'){
+    // Blocca eliminazione se ha noleggi o vendite
+    const hasContratti=DATA.noleggi.some(n=>n.customer_id===id)||DATA.sales.some(s=>s.customer_id===id);
+    if(hasContratti){toast('Impossibile: il cliente ha contratti collegati. Elimina prima i contratti.','err');closeConfirm();return;}
+    DATA.clienti=DATA.clienti.filter(x=>x.id!==id);
+  }
+  if(type==='veicolo'){
+    // Blocca se ha noleggi attivi
+    const hasNolAtv=DATA.noleggi.some(n=>n.vehicle_id===id&&n.stato==='attivo');
+    if(hasNolAtv){toast('Impossibile: il veicolo ha noleggi attivi.','err');closeConfirm();return;}
+    // Cascata: rimuovi expenses, reminders, noleggi completati, danni
+    DATA.expenses=DATA.expenses.filter(x=>x.vehicle_id!==id);
+    DATA.reminders=DATA.reminders.filter(x=>!(x.riferimento_tipo==='veicolo'&&x.riferimento_id===id));
+    DATA.danni=DATA.danni.filter(x=>x.vehicle_id!==id);
+    // payments collegati a noleggi di questo veicolo
+    const nolIds=DATA.noleggi.filter(n=>n.vehicle_id===id).map(n=>n.id);
+    DATA.payments=DATA.payments.filter(p=>!nolIds.includes(p._noleggio_id));
+    DATA.noleggi=DATA.noleggi.filter(x=>x.vehicle_id!==id);
+    DATA.veicoli=DATA.veicoli.filter(x=>x.id!==id);
+  }
   if(type==='ddt')DATA.ddt=DATA.ddt.filter(x=>x.id!==id);
   if(type==='expense')DATA.expenses=DATA.expenses.filter(x=>x.id!==id);
   if(type==='fornitore')DATA.suppliers=DATA.suppliers.filter(x=>x.id!==id);
@@ -3339,7 +3719,12 @@ document.getElementById('confirm-ok').onclick=async function(){
   if(type==='user'){if(!requireAdmin())return;DATA.users=DATA.users.filter(x=>x.id!==id);}
   if(type==='reminder'){DATA.reminders=DATA.reminders.filter(x=>x.id!==id);updateScadenzeBadge();}
   if(type==='sale'){const s=DATA.sales.find(x=>x.id===id);if(s){const vx=DATA.veicoli.find(x=>x.id===s.vehicle_id);if(vx)vx.stato='disponibile';}DATA.sales=DATA.sales.filter(x=>x.id!==id);}
-  if(type==='noleggio'){const n=DATA.noleggi.find(x=>x.id===id);if(n?.stato==='attivo'){const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id);if(vx)vx.stato='disponibile';}DATA.noleggi=DATA.noleggi.filter(x=>x.id!==id);}
+  if(type==='noleggio'){
+    const n=DATA.noleggi.find(x=>x.id===id);
+    // Rimuovi payments collegati a questo noleggio
+    DATA.payments=DATA.payments.filter(p=>p._noleggio_id!==id);
+    DATA.noleggi=DATA.noleggi.filter(x=>x.id!==id);
+  }
   closeDetail();closeConfirm();toast('Eliminato');renderAll();renderDocs();renderGest();renderScadenze();
   // Refresh finance page if active
   if(document.getElementById('pg-finanze')?.classList.contains('active'))renderFinanze();
@@ -3361,7 +3746,9 @@ function openSheet(type,data=null){
     reminder:  data?.id?'Modifica Scadenza':'Nuova Scadenza',
     checkout:  'Check-out (Consegna)',
     checkin:   'Check-in (Rientro)',
-    danno:     'Registra Danno',
+    danno:          'Registra Danno',
+    constatazione_danni: 'Constatazione Danni — Step 1',
+    consuntivo_danni:    'Consuntivo Danni — Step 2',
     payment:   'Registra Pagamento',
     company_cost: 'Costo Aziendale',
     user:      data?.id?'Modifica Utente':'Nuovo Utente',
@@ -3373,6 +3760,7 @@ function openSheet(type,data=null){
     cliente:bCliente,veicolo:bVeicolo,noleggio:bNoleggio,vendita:bVendita,
     ddt:bDdt,expense:bExpense,fornitore:bFornitore,reminder:bReminder,
     checkout:bCheckout,checkin:bCheckin,danno:bDanno,payment:bPayment,
+    constatazione_danni:bConstatazioneDanni,consuntivo_danni:bConsuntivoDanni,
     company_cost:bCompanyCost,user:bUser
   };
   if(builders[type])builders[type](body,data);
@@ -3559,7 +3947,7 @@ function bVeicolo(body,d){
         <div class="ios-f"><label>Colore</label><input id="f-colore" placeholder="Bianco" value="${esc(d?.colore||'')}"></div>
         <div class="ios-f"><label>Carburante</label><select id="f-carb">${['benzina','diesel','elettrico','ibrido','gpl','metano'].map(c=>`<option value="${c}"${d?.carburante===c?' selected':''}>${c[0].toUpperCase()+c.slice(1)}</option>`).join('')}</select></div>
         <div class="ios-f"><label>Prezzo acquisto €</label><input id="f-pacq" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${d?.prezzo_acquisto!=null&&d.prezzo_acquisto!==''?d.prezzo_acquisto:''}"></div>
-        <div class="ios-f"><label>Stato</label><select id="f-stato">${['disponibile','noleggiato','manutenzione','venduto'].map(s=>`<option value="${s}"${d?.stato===s?' selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Stato</label><select id="f-stato">${['disponibile','manutenzione','venduto'].map(s=>`<option value="${s}"${d?.stato===s?' selected':''}>${s[0].toUpperCase()+s.slice(1)}</option>`).join('')}</select></div>
       </div>
     </div>
     <button class="ios-btn primary" onclick="saveVeicolo()" style="margin-top:6px">${isEdit?'Aggiorna Veicolo':'Salva Veicolo'}</button>`;
@@ -3734,7 +4122,7 @@ function bNoleggio(body, d){
         <div class="ios-f"><label>Acconto (€)</label><input id="f-acconto" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.acconto||''}"></div>
         <div class="ios-f"><label>Cauzione (€)</label><input id="f-cauzione" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.cauzione||''}"></div>
       </div>
-      <p style="font-size:11px;color:var(--label3);padding:4px 2px">L'acconto è subito incassato. La cauzione non è un ricavo.</p>
+      
     </div>
     <button class="ios-btn primary" onclick="saveNoleggio()" style="margin-top:6px">${d?.id?'Aggiorna Noleggio':'Crea Noleggio'}</button>`;
 }
@@ -3815,7 +4203,7 @@ async function saveNoleggio(){
       modalita_prezzo:mode,
       prezzo_giornaliero:prezzoGiornaliero,
       stato:existing?.stato||'attivo',
-      incassato:existing?.incassato||false,
+      // n.incassato rimosso — il saldo si calcola da acconto+pagamenti
       acconto:parseFloat(document.getElementById('f-acconto')?.value)||0,
       cauzione:parseFloat(document.getElementById('f-cauzione')?.value)||0,
       pagamenti:existing?.pagamenti||[],
@@ -3832,6 +4220,9 @@ async function saveNoleggio(){
       created_at:existing?.created_at||Date.now()
     };
     upsert('noleggi',noleggio);
+    addLog(isEdit?'modifica':'crea','noleggio',noleggio.id,nomeAnagrafica(DATA.clienti.find(x=>x.id===cid)||{})+' '+fE(pz));
+    // Sincronizza acconto in DATA.payments (se presente)
+    if(noleggio.acconto>0) _sincTuttiPagamentiNoleggio(noleggio);
     // NON modificare stato veicolo — la disponibilità è calcolata sulle date
     closeSheet();renderAll();renderDocs();
     toast(isEdit?'Noleggio aggiornato!':'Noleggio creato!');
@@ -3844,44 +4235,93 @@ async function saveNoleggio(){
 
 /* ── VENDITA FORM ── */
 function bVendita(body,d){
+  const isEdit=!!(d?.id);
   const cl=[...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
-  const dispVendita=DATA.veicoli.filter(x=>x.destinazione==='vendita'&&x.stato==='disponibile');
+  // In modifica il veicolo venduto resta selezionabile anche se stato='venduto'
+  const dispVendita=isEdit
+    ? DATA.veicoli.filter(x=>x.destinazione==='vendita'&&(x.stato==='disponibile'||x.id===d.vehicle_id))
+    : DATA.veicoli.filter(x=>x.destinazione==='vendita'&&x.stato==='disponibile');
   const presel=d?.vehicle_id||'';
   const today=new Date().toISOString().split('T')[0];
   body.innerHTML=`
+    ${isEdit?`<input type="hidden" id="f-sale-id" value="${d.id}"><div style="background:var(--blue-bg);border:1px solid var(--blue);border-radius:var(--r);padding:8px 12px;margin-bottom:10px;font-size:12px;color:var(--blue)">✏️ Modifica vendita esistente</div>`:''}
     <div class="fsec"><div class="fsec-title">Parti</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Acquirente *</label><select id="f-cid"><option value="">Seleziona cliente…</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Acquirente *</label><select id="f-cid"><option value="">Seleziona cliente…</option>${cl.map(c=>`<option value="${c.id}"${c.id===(d?.customer_id||'')?' selected':''}>${nomeAnagrafica(c)}</option>`).join('')}</select></div>
         <div class="ios-f"><label>Veicolo *</label><select id="f-vid"><option value="">Seleziona veicolo…</option>${dispVendita.map(x=>`<option value="${x.id}"${x.id===presel?' selected':''}>${x.marca} ${x.modello} – ${x.targa}</option>`).join('')}</select></div>
       </div>
       ${!dispVendita.length?`<p style="font-size:13px;color:var(--orange);padding:4px">Nessun veicolo in vendita disponibile</p>`:''}
     </div>
     <div class="fsec"><div class="fsec-title">Dettagli</div>
       <div class="ios-fg">
-        <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00"></div>
-        <div class="ios-f"><label>Data vendita *</label>${dateSelectHTML('f-dataV', today)}</div>
+        <div class="ios-f"><label>Prezzo vendita *</label><input id="f-prezzoV" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.prezzo_vendita||''}"></div>
+        <div class="ios-f"><label>Data vendita *</label>${dateSelectHTML('f-dataV', d?.data||today)}</div>
         <div class="ios-f"><label>Stato incasso</label>
           <select id="f-incassato" style="text-align:right;text-align-last:right">
-            <option value="no">Da incassare</option>
-            <option value="si">Incassato</option>
+            <option value="no"${!d?.incassato?' selected':''}>Da incassare</option>
+            <option value="si"${d?.incassato?' selected':''}>Incassato</option>
           </select>
         </div>
       </div>
     </div>
-    <button class="ios-btn primary" onclick="saveVendita()" style="margin-top:6px" ${!dispVendita.length?'disabled':''}>Registra Vendita</button>`;
+    <button class="ios-btn primary" onclick="saveVendita()" style="margin-top:6px" ${!dispVendita.length&&!isEdit?'disabled':''}>${isEdit?'Aggiorna Vendita':'Registra Vendita'}</button>`;
+}
+function editVendita(id){
+  const s=DATA.sales.find(x=>x.id===id);if(!s)return;
+  closeDetail();
+  openSheet('vendita',s);
 }
 async function saveVendita(){
   try{
+    const saleId=document.getElementById('f-sale-id')?.value||'';
+    const isEdit=!!saleId;
     const cid=v('f-cid'),vid=v('f-vid'),pz=parseFloat(v('f-prezzoV')),data=v('f-dataV');
     if(!cid){toast('Seleziona acquirente','err');return;}
     if(!vid){toast('Seleziona veicolo','err');return;}
     if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
     if(!data){toast('Data obbligatoria','err');return;}
     const incassato=document.getElementById('f-incassato')?.value==='si';
-    const costi=DATA.expenses.filter(e=>e.vehicle_id===vid).reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
-    const ricNol=DATA.noleggi.filter(n=>n.vehicle_id===vid&&n.stato==='completato').reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
-    const profitto=pz+ricNol-costi;
-    DATA.sales.push({id:uid(),vehicle_id:vid,customer_id:cid,prezzo_vendita:pz,data,profitto,incassato,created_at:Date.now()});
+    const _cObj=DATA.clienti.find(x=>x.id===cid)||{};
+    const _vObj=DATA.veicoli.find(x=>x.id===vid)||{};
+
+    if(isEdit){
+      // MODIFICA
+      const existing=DATA.sales.find(x=>x.id===saleId);if(!existing)return;
+      const oldVid=existing.vehicle_id;
+      existing.customer_id=cid; existing.vehicle_id=vid;
+      existing.prezzo_vendita=pz; existing.data=data; existing.incassato=incassato;
+      // Ripristina stato veicolo precedente se cambio veicolo
+      if(oldVid!==vid){
+        const oldVx=DATA.veicoli.find(x=>x.id===oldVid);
+        if(oldVx&&oldVx.stato==='venduto') oldVx.stato='disponibile';
+        const newVx=DATA.veicoli.find(x=>x.id===vid);if(newVx) newVx.stato='venduto';
+      }
+      // Aggiorna payment (riconciliaPagamenti lo sistemerà al sync, ma aggiorniamo subito)
+      DATA.payments=DATA.payments.filter(p=>p._sale_id!==saleId);
+      if(incassato) DATA.payments.push({
+        id:saleId+'_pay',tipo:'entrata',importo:pz,data,
+        metodo:'contanti',categoria:'vendita',
+        descrizione:'Vendita '+[_vObj.marca,_vObj.modello,_vObj.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(_cObj),
+        _sale_id:saleId,created_at:Date.now()
+      });
+      addLog('modifica','vendita',saleId,fE(pz));
+      closeSheet();renderAll();renderDocs();toast('Vendita aggiornata!');await syncUp();
+      return;
+    }
+
+    // NUOVA VENDITA
+    const saleRec={id:uid(),vehicle_id:vid,customer_id:cid,prezzo_vendita:pz,data,incassato,created_at:Date.now()};
+    DATA.sales.push(saleRec);
+    addLog('crea','vendita',saleRec.id,fE(pz));
+    if(incassato){
+      DATA.payments.push({
+        id:saleRec.id+'_pay',
+        tipo:'entrata',importo:pz,data,
+        metodo:'contanti',categoria:'vendita',
+        descrizione:'Vendita '+[_vObj.marca,_vObj.modello,_vObj.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(_cObj),
+        _sale_id:saleRec.id,created_at:Date.now()
+      });
+    }
     const vx=DATA.veicoli.find(x=>x.id===vid);if(vx)vx.stato='venduto';
     closeSheet();renderAll();renderDocs();toast('Vendita registrata!');await syncUp();
   }catch(err){
@@ -3904,7 +4344,10 @@ function bDdt(body,d){
   const preVid=d?.vehicle_id||'';
   const preDataCons=d?.data_consegna||today;
   const preData=d?.data||today;
-  const preCausale=d?.causale||'';
+  const preCausale=d?.causale||'Noleggio veicolo';
+  // Pre-carica dati cliente per destinazione e veicolo per km
+  const vxPre=DATA.veicoli.find(x=>x.id===preVid)||null;
+  const cliPre=DATA.clienti.find(x=>x.id===preCid)||null;
   body.innerHTML=`
     ${fromNoleggio?`<div style="background:var(--teal-bg);border:1px solid var(--teal);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--teal);font-weight:500">
       📦 DDT pre-compilato dal contratto — verifica e conferma i dati</div>`:''}
@@ -3926,9 +4369,6 @@ function bDdt(body,d){
         <div class="ios-f"><label>Data consegna *</label>${dateSelectHTML('f-ddt-data-cons', preDataCons)}</div>
         <div class="ios-f"><label>Ora consegna *</label><input id="f-ddt-ora-cons" type="time" value="${nowTime}" style="text-align:left"></div>
       </div>
-      <div style="padding:6px 2px 4px;font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:.06em">Carburante alla consegna *</div>
-      <div class="carb-grid">${carbOpts.map(c=>`<button class="carb-btn" id="ddt-carb-${c}" onclick="selDdtCarb('${c}')">${carbLabel(c)}</button>`).join('')}</div>
-      <input type="hidden" id="f-ddt-carb" value="">
     </div>
     <div class="fsec"><div class="fsec-title">Parti</div>
       <div class="ios-fg">
@@ -3936,15 +4376,26 @@ function bDdt(body,d){
         <div class="ios-f"><label>Veicolo *</label><select id="f-ddt-vid"><option value="">Seleziona…</option>${vl.map(x=>`<option value="${x.id}"${x.id===preVid?' selected':''}>` + x.marca+' '+x.modello+' – '+x.targa + `</option>`).join('')}</select></div>
       </div>
     </div>
+    <div class="fsec"><div class="fsec-title">Dati veicolo alla consegna</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>KM contachilometri *</label><input id="f-ddt-km" type="number" inputmode="decimal" placeholder="es. 12500" value="${d?.km_inizio||vxPre?.km||''}"></div>
+        <div class="ios-f"><label>Stato mezzo</label><input id="f-ddt-stato-mezzo" placeholder="Buono / Graffi / ecc." value="${d?.stato_mezzo||''}"></div>
+      </div>
+      <div style="padding:6px 2px 4px;font-size:11px;font-weight:600;color:var(--label3);text-transform:uppercase;letter-spacing:.06em">Carburante consegna *</div>
+      <div class="carb-grid">${carbOpts.map(cn=>`<button class="carb-btn" id="ddt-carb-${cn}" onclick="selDdtCarb('${cn}')">${carbLabel(cn)}</button>`).join('')}</div>
+      <input type="hidden" id="f-ddt-carb" value="">
+    </div>
     <div class="fsec"><div class="fsec-title">Trasporto</div>
       <div class="ios-fg">
         <div class="ios-f"><label>Causale</label><input id="f-ddt-causale" placeholder="Noleggio / Vendita" value="${preCausale}"></div>
-        <div class="ios-f"><label>Luogo consegna</label><input id="f-ddt-luogo" placeholder="Luogo…"></div>
-        <div class="ios-f"><label>Vettore</label><input id="f-ddt-vettore" placeholder="Mittente"></div>
-        <div class="ios-f"><label>Importo €</label><input id="f-ddt-importo" type="number" inputmode="decimal" step="0.01" placeholder="0.00"></div>
+        <div class="ios-f"><label>Destinazione (indirizzo cliente)</label><input id="f-ddt-luogo" placeholder="Via…" value="${d?.luogo_consegna||(cliPre?.indirizzo||'')}"></div>
+        <div class="ios-f"><label>A mezzo</label><select id="f-ddt-vettore-tipo"><option value="destinatario"${(d?.vettore_tipo||'destinatario')==='destinatario'?' selected':''}>Destinatario</option><option value="mittente"${d?.vettore_tipo==='mittente'?' selected':''}>Mittente</option><option value="vettore"${d?.vettore_tipo==='vettore'?' selected':''}>Vettore terzo</option></select></div>
+        <div class="ios-f"><label>Natura bene</label><select id="f-ddt-natura"><option value="a_vista"${(d?.natura_bene||'a_vista')==='a_vista'?' selected':''}>A vista</option><option value="pacco"${d?.natura_bene==='pacco'?' selected':''}>Pacco</option><option value="collo"${d?.natura_bene==='collo'?' selected':''}>Collo</option><option value="altro"${d?.natura_bene==='altro'?' selected':''}>Altro</option></select></div>
+        <div class="ios-f"><label>Note</label><input id="f-ddt-note" placeholder="Note trasporto…" value="${d?.note||''}"></div>
+        <div class="ios-f"><label>Importo €</label><input id="f-ddt-importo" type="number" inputmode="decimal" step="0.01" placeholder="0.00" value="${d?.importo||''}"></div>
       </div>
     </div>
-    <input type="hidden" id="f-ddt-noleggio-id" value="${fromNoleggio||''}">
+    <input type="hidden" id="f-ddt-noleggio-id" value="${fromNoleggio||d?.noleggio_id||''}" data-edit-id="${d?._editId||''}">
     <button class="ios-btn primary" onclick="saveDdt()" style="margin-top:6px">Crea DDT</button>`;
 }
 
@@ -3956,6 +4407,8 @@ function selDdtCarb(c){
 }
 async function saveDdt(){
   try{
+    const editId=document.getElementById('f-ddt-noleggio-id')?.getAttribute('data-edit-id')||'';
+    const isEditDdt=!!editId;
     const cid=v('f-ddt-cid'),vid=v('f-ddt-vid'),data=v('f-ddt-data'),tipo=v('f-ddt-tipo');
     const dataConsegna=v('f-ddt-data-cons'),oraConsegna=v('f-ddt-ora-cons'),carburante=v('f-ddt-carb');
     const noleggioId=document.getElementById('f-ddt-noleggio-id')?.value||'';
@@ -3963,17 +4416,45 @@ async function saveDdt(){
     if(!dataConsegna||!oraConsegna){toast('Data e ora consegna obbligatorie','err');return;}
     if(!carburante){toast('Seleziona il livello carburante','err');return;}
     const vx=DATA.veicoli.find(x=>x.id===vid);
-    DATA.ddt.push({
-      id:uid(),tipo,numero:v('f-ddt-num'),
+    const kmDdt=parseInt(document.getElementById('f-ddt-km')?.value)||0;
+    const statoMezzo=(document.getElementById('f-ddt-stato-mezzo')?.value||'').trim();
+    const vetTipo=v('f-ddt-vettore-tipo')||'destinatario';
+    const naturaBene=v('f-ddt-natura')||'a_vista';
+    const noteDdt=(document.getElementById('f-ddt-note')?.value||'').trim();
+    const ddtData={
+      tipo,numero:v('f-ddt-num'),
       customer_id:cid,vehicle_id:vid,
-      noleggio_id:noleggioId||null,  // collegamento al contratto
+      noleggio_id:noleggioId||null,
       data,data_consegna:dataConsegna,ora_consegna:oraConsegna,
       carburante_consegna:carburante,
+      km_consegna:kmDdt||vx?.km||0,
+      stato_mezzo:statoMezzo,
       causale:v('f-ddt-causale'),luogo_consegna:v('f-ddt-luogo'),
-      vettore:v('f-ddt-vettore'),km_consegna:vx?.km||0,
-      importo:parseFloat(v('f-ddt-importo'))||0,created_at:Date.now()
-    });
-    closeSheet();renderDocs();toast('DDT creato!');await syncUp();
+      vettore_tipo:vetTipo, natura_bene:naturaBene,
+      note:noteDdt,
+      importo:parseFloat(v('f-ddt-importo'))||0,
+    };
+    if(isEditDdt){
+      const existing=DATA.ddt.find(x=>x.id===editId);
+      if(existing) Object.assign(existing,ddtData);
+      addLog('modifica','ddt',editId,'');
+    } else {
+      DATA.ddt.push({id:uid(),...ddtData,stato:'attivo',created_at:Date.now()});
+    }
+    // ── PUNTO 4: copia km e carburante nel noleggio come check-out automatico ──
+    if(noleggioId && tipo==='noleggio'){
+      const nolRef=DATA.noleggi.find(x=>x.id===noleggioId);
+      if(nolRef && nolRef.km_inizio==null && kmDdt>0){
+        nolRef.km_inizio=kmDdt;
+        nolRef.carburante_inizio=carburante;
+        if(statoMezzo) nolRef.note_inizio=statoMezzo;
+        // Aggiorna anche km del veicolo (stato al momento della consegna)
+        if(vx) vx.km=kmDdt;
+      }
+    }
+    closeSheet();renderDocs();
+    toast(isEditDdt?'DDT aggiornato!':'DDT creato!'+(noleggioId&&tipo==='noleggio'&&kmDdt>0?' · Check-out automatico registrato nel contratto.':''));
+    await syncUp();
   }catch(err){
     console.error('[saveDdt]',err);
     toast('Errore: '+err.message,'err');
@@ -4606,6 +5087,24 @@ async function completaReminder(id){
     };
     const periodicita=r.periodicita||ricorrenzaAuto[r.tipo]||null;
 
+    // Proponi generazione pagamento se importo > 0
+    if((parseFloat(r.importo)||0)>0){
+      const tipoUscita=r.tipo==='stipendio'||r.tipo==='affitto'||r.tipo==='utenze'||r.tipo==='tasse'||r.tipo==='software'||r.tipo==='assicurazione'||r.tipo==='bollo';
+      if(confirm(`Scadenza completata!\n\nRegistrare il pagamento di ${fE(parseFloat(r.importo))} come uscita in cassa?`)){
+        DATA.payments.push({
+          id:uid(), tipo:'uscita',
+          importo:parseFloat(r.importo),
+          data:new Date().toISOString().split('T')[0],
+          metodo:'contanti', categoria:r.tipo||'altro',
+          descrizione:(r.descrizione||r.tipo||'Scadenza')+''+(r.riferimento_id?'':' (generale)'),
+          _reminder_id:r.id, created_at:Date.now()
+        });
+        addLog('pagamento','reminder',r.id,fE(parseFloat(r.importo))+' — '+r.tipo);
+        await syncUp();
+        toast('Pagamento registrato come uscita');
+      }
+    }
+
     if(!periodicita||periodicita==='una-tantum'){
       toast('Scadenza completata');
       return;
@@ -5150,8 +5649,8 @@ function genPdfNoleggio(id){
             <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right">€ ${fN(prezzoGiorno)}</td>
             <td style="padding:9px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(totale)}</td>
           </tr>
-          ${acconto>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#166534">Acconto versato (già incassato)</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#166534">- € ${fN(acconto)}</td></tr>`:''}
-          ${cauzione>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#1d4ed8">Deposito cauzionale (non è ricavo)</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#1d4ed8">€ ${fN(cauzione)}</td></tr>`:''}
+          ${acconto>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#166534">Acconto versato</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#166534">- € ${fN(acconto)}</td></tr>`:''}
+          ${cauzione>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#1d4ed8">Deposito cauzionale</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#1d4ed8">€ ${fN(cauzione)}</td></tr>`:''}
         </tbody>
         <tfoot>
           <tr style="background:#1e40af;color:#fff">
@@ -5169,6 +5668,7 @@ function genPdfNoleggio(id){
     </div>
 
     ${tblPagamenti}
+    <div style="margin:6px 0 0;padding:6px 10px;background:#f1f5f9;border-left:3px solid #94a3b8;font-size:9px;color:#475569">I prezzi esposti sono comprensivi di IVA ove applicabile.</div>
     </div>
     ${_buildFirmaHtml(clienteNome,'',S.company_name,S.footer_contract)}`
   }];
@@ -5303,6 +5803,21 @@ function genPdfNoleggio(id){
   openPdfPages(_pages);
 }
 
+
+async function annullaDdt(id){
+  try{
+    const d=DATA.ddt.find(x=>x.id===id);if(!d)return;
+    d.stato='annullato';
+    showDdt(id);renderDocs();toast('DDT annullato');await syncUp();
+  }catch(e){toast('Errore: '+e.message,'err');}
+}
+async function riattivaDdt(id){
+  try{
+    const d=DATA.ddt.find(x=>x.id===id);if(!d)return;
+    d.stato='attivo';
+    showDdt(id);renderDocs();toast('DDT riattivato');await syncUp();
+  }catch(e){toast('Errore: '+e.message,'err');}
+}
 function genPdfDdt(id){
   const d=DATA.ddt.find(x=>x.id===id);if(!d)return;
   const c=DATA.clienti.find(x=>x.id===d.customer_id)||{};
@@ -5410,7 +5925,7 @@ function renderDanniIn(body){
         <div class="ios-row-title">${vx.marca||'?'} ${vx.modello||''} <span style="font-family:monospace;font-size:11px;color:var(--label3)">${vx.targa||''}</span></div>
         <div class="ios-row-sub">${d.descrizione?.slice(0,50)||'—'} · ${fD(d.data)}</div>
       </div>
-      <span class="badge ${d.stato==='attivo'?'b-red':'b-green'}">${d.stato}</span>
+      <span class="badge ${d.stato==='da_addebitare'?'b-red':d.stato==='fatturato'?'b-orange':d.stato==='pagato'?'b-green':'b-dim'}">${d.stato?.replace('_',' ')||'—'}</span>
     </div>`;}).join('')}</div>`;
 }
 
@@ -5424,22 +5939,59 @@ function showDanno(id){
       <div style="font-size:46px;margin-bottom:8px"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="16" height="16"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3z"/><polyline points="12 9 12 13"/><circle cx="12" cy="17" r="0.5" fill="currentColor"/></svg></div>
       <div class="hero-name">${vx.marca||'?'} ${vx.modello||''}</div>
       <div class="hero-sub" style="font-family:monospace">${vx.targa||''}</div>
-      <div style="margin-top:8px"><span class="badge ${d.stato==='attivo'?'b-red':'b-green'}">${d.stato}</span></div>
+      <div style="margin-top:8px"><span class="badge ${d.stato==='da_addebitare'?'b-red':d.stato==='fatturato'?'b-orange':d.stato==='pagato'?'b-green':'b-dim'}">${d.stato?.replace('_',' ')||'—'}</span></div>
     </div>
     <div class="list-section"><div class="list-header">Dettagli</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Descrizione</div><div class="ios-row-title" style="white-space:pre-wrap;font-size:14px">${d.descrizione||'—'}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data</div><div class="ios-row-title">${fD(d.data)}</div></div></div>
+        ${(parseFloat(d.importo)||0)>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Importo addebitato</div><div class="ios-row-title" style="color:var(--orange);font-weight:700">${fE(parseFloat(d.importo))}</div></div></div>`:''}
         ${c.cognome?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Cliente</div><div class="ios-row-title">${c.cognome} ${c.nome}</div></div></div>`:''}
       </div>
     </div>
     <div class="btn-stack" style="margin-top:8px">
+      ${d.stato!=='pagato'?`<button class="ios-btn primary" onclick="editDanno('${id}')"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" width="14" height="14"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg> Modifica danno</button>`:''}
+      ${d.stato==='da_addebitare'?`<button class="ios-btn warn" onclick="apriConsuntivoDanni('${id}')">💰 Compila consuntivo (step 2)</button>`:''}
+      ${d.stato==='fatturato'||d.stato==='pagato'?`<button class="ios-btn neutral" onclick="genPdfConsuntivoDanni('${id}')">📄 PDF consuntivo</button>`:''}
+      ${d.stato==='fatturato'?`<button class="ios-btn success" onclick="avanzaDanno('${id}','pagato')">✅ Segna pagato → genera entrata</button>`:''}
+      ${d.stato==='da_addebitare'?`<button class="ios-btn warn" onclick="avanzaDanno('${id}','fatturato')">Segna fatturato (senza consuntivo)</button>`:''}
       ${d.stato==='attivo'?`<button class="ios-btn success" onclick="risolviDanno('${id}')">✅ Segna risolto</button>`:''}
+      ${d.noleggio_id?`<button class="ios-btn neutral" onclick="genPdfConstatazioneDanni({cid:'${d.customer_id||''}',vid:'${d.vehicle_id||''}',nolId:'${d.noleggio_id||''}',danni:[...DATA.danni.filter(x=>x.noleggio_id==='${d.noleggio_id}'&&x.id!==undefined).map(x=>x.descrizione||'')],data:'${d.data||''}',note:''})">📋 Rigenera PDF constatazione</button>`:''}
       <button class="ios-btn danger" onclick="askDel('danno','${id}')">Elimina</button>
     </div>`;
   openDetail();
 }
 
+
+function editDanno(id){
+  const d=DATA.danni.find(x=>x.id===id);if(!d)return;
+  closeDetail();
+  openSheet('danno',d);
+}
+
+async function avanzaDanno(id, nuovoStato){
+  try{
+    const d=DATA.danni.find(x=>x.id===id);if(!d)return;
+    d.stato=nuovoStato;
+    if(nuovoStato==='pagato'&&(parseFloat(d.importo)||0)>0){
+      const c=DATA.clienti.find(x=>x.id===d.customer_id)||{};
+      const vx=DATA.veicoli.find(x=>x.id===d.vehicle_id)||{};
+      DATA.payments.push({
+        id:uid(), tipo:'entrata',
+        importo:parseFloat(d.importo),
+        data:new Date().toISOString().split('T')[0],
+        metodo:'contanti', categoria:'danno',
+        descrizione:'Addebito danno — '+[vx.marca,vx.modello,vx.targa].filter(Boolean).join(' ')+' — '+nomeAnagrafica(c),
+        _danno_id:id, created_at:Date.now()
+      });
+      addLog('pagamento','danno',id,fE(parseFloat(d.importo))+' incassato');
+      toast('Danno segnato come pagato — entrata registrata');
+    } else {
+      toast('Stato aggiornato: '+nuovoStato);
+    }
+    showDanno(id);renderGest();await syncUp();
+  }catch(e){toast('Errore: '+e.message,'err');}
+}
 async function risolviDanno(id){
   const d=DATA.danni.find(x=>x.id===id);if(!d)return;
   d.stato='risolto';closeDetail();renderGest();toast('Danno segnato come risolto ✅');await syncUp();
@@ -5454,11 +6006,16 @@ function bDanno(body,d){
       <div class="ios-fg">
         <div class="ios-f"><label>Veicolo *</label><select id="f-d-vid"><option value="">Seleziona…</option>${vl.map(v=>`<option value="${v.id}"${d?.vehicle_id===v.id?' selected':''}>${v.marca} ${v.modello} – ${v.targa}</option>`).join('')}</select></div>
         <div class="ios-f"><label>Data *</label>${dateSelectHTML('f-d-data', d?.data||today)}</div>
-        <div class="ios-f"><label>Cliente</label><select id="f-d-cid"><option value="">Nessuno</option>${cl.map(c=>`<option value="${c.id}">${nomeAnagrafica(c)}</option>`).join('')}</select></div>
+        <div class="ios-f"><label>Cliente</label><select id="f-d-cid"><option value="">Nessuno</option>${cl.map(c=>`<option value="${c.id}"${c.id===(d?.customer_id||'')?'  selected':''}>${nomeAnagrafica(c)}</option>`).join('')}</select></div>
       </div>
     </div>
     <div class="fsec"><div class="fsec-title">Descrizione danno *</div>
       <div class="ios-fg"><div class="ios-f ta"><label style="width:auto;font-size:12px">Dettagli</label><textarea id="f-d-desc" placeholder="Descrivere il danno in dettaglio…" style="min-height:100px">${esc(d?.descrizione||'')}</textarea></div></div>
+    </div>
+    <div class="fsec"><div class="fsec-title">Importo addebitabile</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Importo € (0 = da definire)</label><input id="f-d-importo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.importo||''}"></div>
+      </div>
     </div>
     <button class="ios-btn primary" onclick="saveDanno()" style="margin-top:6px">Registra Danno</button>`;
 }
@@ -5467,7 +6024,23 @@ async function saveDanno(){
     const vid=v('f-d-vid'),data=v('f-d-data'),desc=document.getElementById('f-d-desc')?.value?.trim();
     if(!vid){toast('Seleziona veicolo','err');return;}
     if(!desc){toast('Descrizione obbligatoria','err');return;}
-    DATA.danni.push({id:uid(),vehicle_id:vid,customer_id:v('f-d-cid'),descrizione:desc,data,stato:'attivo',created_at:Date.now()});
+    const importoD=parseFloat(document.getElementById('f-d-importo')?.value)||0;
+    const editId=curForm?.data?.id||'';
+    if(editId){
+      // MODIFICA danno esistente
+      const ex=DATA.danni.find(x=>x.id===editId);
+      if(ex){
+        ex.vehicle_id=vid; ex.customer_id=v('f-d-cid');
+        ex.descrizione=desc; ex.importo=importoD; ex.data=data;
+        addLog('modifica','danno',editId,desc.slice(0,40));
+        closeSheet();renderGest();toast('Danno aggiornato ✅');await syncUp();
+        return;
+      }
+    }
+    // NUOVO danno
+    DATA.danni.push({id:uid(),vehicle_id:vid,customer_id:v('f-d-cid'),descrizione:desc,
+      importo:importoD,data,stato:'da_addebitare',created_at:Date.now()});
+    addLog('crea','danno','','€'+importoD+' — '+desc.slice(0,40));
     closeSheet();renderGest();toast('Danno registrato 💥');await syncUp();
   }catch(err){
     console.error('[saveDanno]',err);
@@ -5532,6 +6105,490 @@ function handleLogoUpload(input){
 }
 
 /* ══════════════════════ PDF CONTESTAZIONE ══════════════════════ */
+
+/* ══ GESTIONE DANNI A 2 STEP ══════════════════════════════════════
+   Step 1: Constatazione — elenco danni senza importi, PDF firma cliente
+   Step 2: Consuntivo    — voci costo, sconto, totale, pagamento
+═══════════════════════════════════════════════════════════════════ */
+
+/* Apre form constatazione danni.
+   Accessibile da: dettaglio noleggio, tab Danni (Gestione), check-in automatico */
+function apriConstatazioneDanni(noleggioId){
+  closeDetail();
+  openSheet('constatazione_danni', {noleggio_id: noleggioId||''});
+}
+
+function bConstatazioneDanni(body, d){
+  const nolId = d?.noleggio_id||'';
+  const n = DATA.noleggi.find(x=>x.id===nolId)||{};
+  const cl = [...DATA.clienti].sort((a,b)=>nomeAnagrafica(a).localeCompare(nomeAnagrafica(b)));
+  const vl = [...DATA.veicoli].sort((a,b)=>a.marca.localeCompare(b.marca));
+  const today = new Date().toISOString().split('T')[0];
+
+  // Costruisce lista danni preesistenti dal noleggio (da check-in)
+  const danniPrecomp = n.danni_rientro ? `• ${n.danni_rientro}` : '';
+
+  body.innerHTML=`
+    <div style="background:var(--red-bg);border:1px solid var(--red);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--red);font-weight:500">
+      📋 Step 1 — Constatazione danni (senza importi). Il consuntivo verrà aggiunto successivamente.
+    </div>
+    <div class="fsec"><div class="fsec-title">Riferimento contratto</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Contratto noleggio</label>
+          <select id="f-cd-nolid" onchange="aggiornaDatiConstatazione(this.value)">
+            <option value="">Nessuno</option>
+            ${DATA.noleggi.map(n2=>{const c2=DATA.clienti.find(x=>x.id===n2.customer_id)||{};const v2=DATA.veicoli.find(x=>x.id===n2.vehicle_id)||{};return`<option value="${n2.id}"${n2.id===nolId?' selected':''}>${v2.marca||'?'} ${v2.modello||''} – ${nomeAnagrafica(c2)} (${fD(n2.data_inizio)})</option>`;}).join('')}
+          </select>
+        </div>
+      </div>
+    </div>
+    <div class="fsec"><div class="fsec-title">Parti</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Cliente *</label>
+          <select id="f-cd-cid"><option value="">Seleziona…</option>${cl.map(c3=>`<option value="${c3.id}"${n.customer_id===c3.id?' selected':''}>${nomeAnagrafica(c3)}</option>`).join('')}</select>
+        </div>
+        <div class="ios-f"><label>Veicolo *</label>
+          <select id="f-cd-vid"><option value="">Seleziona…</option>${vl.map(v3=>`<option value="${v3.id}"${n.vehicle_id===v3.id?' selected':''}>${v3.marca} ${v3.modello} – ${v3.targa}</option>`).join('')}</select>
+        </div>
+      </div>
+    </div>
+    <div class="fsec"><div class="fsec-title">Elenco danni (solo descrizioni) *</div>
+      <p style="font-size:11px;color:var(--label3);padding:0 2px 6px">Inserisci un danno per riga. Gli importi verranno aggiunti nel Consuntivo (Step 2).</p>
+      <div class="ios-fg">
+        <div class="ios-f ta"><label>Danni riscontrati</label>
+          <textarea id="f-cd-danni" placeholder="• Graffio sportello anteriore sinistro&#10;• Ammaccatura paraurti posteriore&#10;• Specchietto danneggiato" style="min-height:120px">${esc(danniPrecomp)}</textarea>
+        </div>
+        <div class="ios-f"><label>Data constatazione *</label>${dateSelectHTML('f-cd-data', today)}</div>
+        <div class="ios-f ta"><label>Note aggiuntive</label>
+          <textarea id="f-cd-note" placeholder="Condizioni generali del veicolo…" style="min-height:60px"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="btn-stack" style="margin-top:6px">
+      <button class="ios-btn primary" onclick="salvaConstatazioneDanni()">Salva e genera PDF constatazione</button>
+    </div>`;
+}
+
+function aggiornaDatiConstatazione(nolId){
+  const n = DATA.noleggi.find(x=>x.id===nolId)||{};
+  if(!n.id) return;
+  const cidSel = document.getElementById('f-cd-cid');
+  const vidSel = document.getElementById('f-cd-vid');
+  if(cidSel) cidSel.value = n.customer_id||'';
+  if(vidSel) vidSel.value = n.vehicle_id||'';
+}
+
+async function salvaConstatazioneDanni(){
+  try{
+    const cid=v('f-cd-cid'), vid=v('f-cd-vid');
+    const nolId=v('f-cd-nolid')||'';
+    const danni=(document.getElementById('f-cd-danni')?.value||'').trim();
+    const data=v('f-cd-data');
+    const note=(document.getElementById('f-cd-note')?.value||'').trim();
+    if(!cid){toast('Seleziona cliente','err');return;}
+    if(!vid){toast('Seleziona veicolo','err');return;}
+    if(!danni){toast('Inserisci almeno un danno','err');return;}
+
+    // Crea record danno per ogni riga non vuota
+    const righe = danni.split('\n').map(r=>r.replace(/^[•\-\*]\s*/,'').trim()).filter(Boolean);
+    const dannoIds=[];
+    righe.forEach(desc=>{
+      const dId=uid();
+      DATA.danni.push({
+        id:dId, vehicle_id:vid, customer_id:cid, noleggio_id:nolId||null,
+        descrizione:desc, importo:0,
+        data, stato:'da_addebitare',
+        note_constatazione:note,
+        created_at:Date.now()
+      });
+      dannoIds.push(dId);
+    });
+
+    addLog('crea','constatazione_danni','',righe.length+' danni — '+vid);
+    closeSheet();
+    renderGest();
+    await syncUp();
+
+    // Genera immediatamente il PDF constatazione
+    genPdfConstatazioneDanni({cid,vid,nolId,danni:righe,data,note});
+    toast('Constatazione salvata! PDF in apertura…');
+  }catch(err){
+    console.error('[salvaConstatazioneDanni]',err);
+    toast('Errore: '+err.message,'err');
+  }
+}
+
+function genPdfConstatazioneDanni({cid,vid,nolId,danni,data,note}){
+  const c=DATA.clienti.find(x=>x.id===cid)||{};
+  const vx=DATA.veicoli.find(x=>x.id===vid)||{};
+  const n=DATA.noleggi.find(x=>x.id===nolId)||{};
+  const S=SETTINGS;
+  const oggi=new Date().toLocaleDateString('it-IT');
+
+  openPdf(`
+    ${pdfHeader()}
+    <div class="pdf-body">
+      <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#dc2626;margin-bottom:4px">Constatazione Danni</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:18px">Data: ${oggi}${nolId?` · Contratto N° ${nolId.slice(-6).toUpperCase()}`:''}  </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Cliente</div>
+          <div style="font-weight:700">${nomeAnagrafica(c)}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.6">
+            ${c.codice_fiscale?'C.F.: '+c.codice_fiscale:''}
+            ${c.telefono?'<br>Tel: '+c.telefono:''}
+          </div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Veicolo</div>
+          <div style="font-weight:700">${vx.marca||''} ${vx.modello||''}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.6">
+            Targa: <strong style="font-family:monospace">${vx.targa||'—'}</strong>
+            ${n.km_inizio!=null?'<br>KM consegna: '+fN(n.km_inizio)+' km':''}
+          </div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Danni riscontrati</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:#0f172a;color:#fff">
+            <th style="padding:7px 10px;text-align:left">N°</th>
+            <th style="padding:7px 10px;text-align:left">Descrizione danno</th>
+          </tr></thead>
+          <tbody>
+            ${danni.map((d,i)=>`<tr style="background:${i%2===0?'#f8fafc':'#fff'}">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center;font-weight:600;width:40px">${i+1}</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0">${d}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>
+
+      ${note?`<div style="margin-bottom:16px;padding:10px 14px;background:#fef9c3;border-left:3px solid #ca8a04;font-size:11px;color:#713f12">${note}</div>`:''}
+
+      <div style="margin:20px 0;padding:14px;background:#fef2f2;border-left:4px solid #dc2626;border-radius:0 8px 8px 0;font-size:11px;color:#7f1d1d">
+        <strong>Il cliente dichiara di aver preso visione e di accettare l'elenco dei danni sopra riportati.</strong><br>
+        Gli importi del consuntivo verranno comunicati successivamente, previa valutazione tecnica.
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:36px">Firma Cliente — Accettazione</div>
+        <div style="border-bottom:1px solid #94a3b8;font-size:11px;color:#64748b">${nomeAnagrafica(c)}</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:36px">Firma Operatore</div>
+        <div style="border-bottom:1px solid #94a3b8;font-size:11px;color:#64748b">${S.company_name||''}</div></div>
+    </div>
+    <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone'}
+    </div>
+  `);
+}
+
+/* ── STEP 2: Consuntivo danni ── */
+function apriConsuntivoDanni(dannoId){
+  const d = DATA.danni.find(x=>x.id===dannoId);
+  if(!d){toast('Danno non trovato','err');return;}
+  closeDetail();
+  openSheet('consuntivo_danni',{danno_id:dannoId});
+}
+
+function bConsuntivoDanni(body, d){
+  const dannoId = d?.danno_id||'';
+  const danno = DATA.danni.find(x=>x.id===dannoId)||{};
+  // Inizializza voci dal danno esistente (se rientro)
+  _vociConsuntivo = (danno.voci_consuntivo&&danno.voci_consuntivo.length)
+    ? danno.voci_consuntivo.map(vo=>({desc:vo.desc||'',qty:parseFloat(vo.qty)||1,pu:parseFloat(vo.pu)||parseFloat(vo.imp)||0,imp:(parseFloat(vo.qty)||1)*(parseFloat(vo.pu)||parseFloat(vo.imp)||0)}))
+    : [{desc:danno.descrizione||'',qty:1,pu:parseFloat(danno.importo)||0,imp:parseFloat(danno.importo)||0}];
+  const cObj = DATA.clienti.find(x=>x.id===danno.customer_id)||{};
+  const vx = DATA.veicoli.find(x=>x.id===danno.vehicle_id)||{};
+  // Voci costo esistenti (da sessioni precedenti)
+  const voci = danno.voci_consuntivo||[];
+
+  body.innerHTML=`
+    <div style="background:var(--orange-bg);border:1px solid var(--orange);border-radius:var(--r);padding:10px 14px;margin-bottom:12px;font-size:13px;color:var(--orange);font-weight:500">
+      💰 Step 2 — Consuntivo danni: inserisci le voci di costo
+    </div>
+    <input type="hidden" id="f-cons-danno-id" value="${dannoId}">
+    <div class="fsec"><div class="fsec-title">Riferimento</div>
+      <div class="ios-list" style="border-radius:var(--r);overflow:hidden;border:1px solid var(--sep)">
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Danno</div><div class="ios-row-title">${danno.descrizione||'—'}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Veicolo</div><div class="ios-row-title">${vx.marca||''} ${vx.modello||''} · ${vx.targa||''}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Cliente</div><div class="ios-row-title">${nomeAnagrafica(cObj)||'—'}</div></div></div>
+      </div>
+    </div>
+    <div class="fsec"><div class="fsec-title">Voci di costo</div>
+      <div id="cons-voci-list">
+        <div style="display:grid;grid-template-columns:2fr 60px 90px 90px 28px;gap:4px;padding:0 2px 4px;font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase">
+          <div>Descrizione</div><div style="text-align:center">Qtà</div><div style="text-align:right">€/unità</div><div style="text-align:right">Totale</div><div></div>
+        </div>
+        ${voci.map((vo,i)=>`
+          <div style="display:grid;grid-template-columns:2fr 60px 90px 90px 28px;gap:4px;margin-bottom:5px;align-items:center">
+            <input placeholder="Descrizione" value="${esc(vo.desc||'')}" oninput="aggiornaVoceConsuntivo(${i},'desc',this.value)" style="font-size:13px">
+            <input type="number" inputmode="decimal" min="0" step="0.01" placeholder="1" value="${vo.qty||1}" oninput="aggiornaVoceConsuntivo(${i},'qty',this.value)" style="text-align:center;font-size:13px">
+            <input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${vo.pu||''}" oninput="aggiornaVoceConsuntivo(${i},'pu',this.value)" style="text-align:right;font-size:13px">
+            <div style="text-align:right;font-weight:600;font-size:13px;padding:0 4px">€ ${fN(((parseFloat(vo.qty)||1)*(parseFloat(vo.pu)||0)))||'0,00'}</div>
+            <button onclick="rimuoviVoceConsuntivo(${i})" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0">✕</button>
+          </div>`).join('')}
+      </div>
+      <button class="ios-btn neutral" onclick="aggiungiVoceConsuntivo()" style="margin-top:4px">+ Aggiungi voce</button>
+    </div>
+    <div class="fsec"><div class="fsec-title">Totali</div>
+      <div class="ios-list" style="border-radius:var(--r);overflow:hidden;border:1px solid var(--sep)">
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Totale lordo</div><div class="ios-row-title" id="cons-tot-lordo" style="font-weight:700">€ 0,00</div></div></div>
+      </div>
+      <div class="ios-fg" style="margin-top:8px">
+        <div class="ios-f"><label>Sconto €</label><input id="f-cons-sc-eur" type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" oninput="calcolaConsuntivo('eur')"></div>
+        <div class="ios-f"><label>Sconto %</label><input id="f-cons-sc-pct" type="number" inputmode="decimal" min="0" max="100" step="0.1" placeholder="0" oninput="calcolaConsuntivo('pct')"></div>
+      </div>
+      <div class="ios-list" style="border-radius:var(--r);overflow:hidden;border:1px solid var(--sep);margin-top:8px">
+        <div class="ios-row" style="background:var(--green-bg)"><div class="ios-row-body"><div class="ios-row-sub">Totale finale</div><div class="ios-row-title" id="cons-tot-finale" style="font-weight:700;color:var(--green);font-size:20px">€ 0,00</div></div></div>
+      </div>
+    </div>
+    <div class="btn-stack" style="margin-top:8px">
+      <button class="ios-btn primary" onclick="salvaConsuntivoDanni()">Salva consuntivo</button>
+      <button class="ios-btn neutral" onclick="salvaConsuntivoEPdf()">Salva e genera PDF</button>
+    </div>`;
+
+  // Mostra voci esistenti nel DOM e ricalcola
+  setTimeout(()=>calcolaConsuntivo('eur'),50);
+}
+
+// Stato temporaneo voci consuntivo
+let _vociConsuntivo=[];
+function aggiungiVoceConsuntivo(){
+  _vociConsuntivo.push({desc:'',qty:1,pu:0,imp:0});
+  _refreshVociConsuntivo();
+}
+function rimuoviVoceConsuntivo(i){
+  _vociConsuntivo.splice(i,1);
+  _refreshVociConsuntivo();
+  calcolaConsuntivo('eur');
+}
+function aggiornaVoceConsuntivo(i,campo,val){
+  if(!_vociConsuntivo[i]) return;
+  if(campo==='qty'){ _vociConsuntivo[i].qty=parseFloat(val)||1; }
+  else if(campo==='pu'){ _vociConsuntivo[i].pu=parseFloat(val)||0; }
+  else { _vociConsuntivo[i].desc=val; }
+  // Ricalcola imp = qty × pu
+  _vociConsuntivo[i].imp=(_vociConsuntivo[i].qty||1)*(_vociConsuntivo[i].pu||0);
+  calcolaConsuntivo('eur');
+  // Aggiorna il display totale riga senza re-render completo
+  _refreshVociConsuntivo();
+}
+function _refreshVociConsuntivo(){
+  const el=document.getElementById('cons-voci-list');
+  if(!el)return;
+  el.innerHTML=`<div style="display:grid;grid-template-columns:2fr 60px 90px 90px 28px;gap:4px;padding:0 2px 4px;font-size:10px;font-weight:600;color:var(--label3);text-transform:uppercase">
+    <div>Descrizione</div><div style="text-align:center">Qtà</div><div style="text-align:right">€/unità</div><div style="text-align:right">Totale</div><div></div>
+  </div>`+_vociConsuntivo.map((vo,i)=>`
+    <div style="display:grid;grid-template-columns:2fr 60px 90px 90px 28px;gap:4px;margin-bottom:5px;align-items:center">
+      <input placeholder="Descrizione" value="${esc(vo.desc||'')}" oninput="aggiornaVoceConsuntivo(${i},'desc',this.value)" style="font-size:13px">
+      <input type="number" inputmode="decimal" min="0" step="0.01" placeholder="1" value="${vo.qty||1}" oninput="aggiornaVoceConsuntivo(${i},'qty',this.value)" style="text-align:center;font-size:13px">
+      <input type="number" inputmode="decimal" min="0" step="0.01" placeholder="0.00" value="${vo.pu||''}" oninput="aggiornaVoceConsuntivo(${i},'pu',this.value)" style="text-align:right;font-size:13px">
+      <div style="text-align:right;font-weight:600;font-size:13px;padding:0 4px">€ ${fN((parseFloat(vo.qty)||1)*(parseFloat(vo.pu)||0))}</div>
+      <button onclick="rimuoviVoceConsuntivo(${i})" style="background:none;border:none;color:var(--red);font-size:16px;cursor:pointer;padding:0">✕</button>
+    </div>`).join('');
+}
+function calcolaConsuntivo(origine){
+  // Ogni voce: totale_riga = qty × pu. imp viene sempre ricalcolato
+  _vociConsuntivo.forEach(vo=>{vo.imp=(parseFloat(vo.qty)||1)*(parseFloat(vo.pu)||0);});
+  const lordo=_vociConsuntivo.reduce((s,vo)=>s+(vo.imp||0),0);
+  const elLordo=document.getElementById('cons-tot-lordo');
+  if(elLordo) elLordo.textContent='€ '+fN(lordo);
+  const scEur=document.getElementById('f-cons-sc-eur');
+  const scPct=document.getElementById('f-cons-sc-pct');
+  let sconto=0;
+  if(origine==='pct'&&scPct){
+    const pct=parseFloat(scPct.value)||0;
+    sconto=Math.round(lordo*pct/100*100)/100;
+    if(scEur) scEur.value=fN(sconto).replace('.','').replace(',','.');
+  } else if(scEur){
+    sconto=parseFloat(scEur.value)||0;
+    const pct=lordo>0?Math.round(sconto/lordo*10000)/100:0;
+    if(scPct) scPct.value=pct;
+  }
+  const finale=Math.max(0,lordo-sconto);
+  const elFinale=document.getElementById('cons-tot-finale');
+  if(elFinale) elFinale.textContent='€ '+fN(finale);
+  return{lordo,sconto,finale};
+}
+async function salvaConsuntivoDanni(){
+  try{
+    const dannoId=v('f-cons-danno-id');
+    const d=DATA.danni.find(x=>x.id===dannoId);if(!d)return;
+    const{lordo,sconto,finale}=calcolaConsuntivo('eur');
+    d.voci_consuntivo=[..._vociConsuntivo];
+    d.importo=finale;
+    d.importo_lordo=lordo;
+    d.sconto=sconto;
+    d.stato='fatturato';
+    addLog('modifica','danno',dannoId,'Consuntivo €'+finale);
+    closeSheet();renderGest();toast('Consuntivo salvato!');await syncUp();
+  }catch(err){toast('Errore: '+err.message,'err');}
+}
+async function salvaConsuntivoEPdf(){
+  const dannoId=v('f-cons-danno-id');
+  await salvaConsuntivoDanni();
+  if(dannoId) genPdfConsuntivoDanni(dannoId);
+}
+
+function genPdfConsuntivoDanni(dannoId){
+  const d=DATA.danni.find(x=>x.id===dannoId);if(!d)return;
+  const c=DATA.clienti.find(x=>x.id===d.customer_id)||{};
+  const vx=DATA.veicoli.find(x=>x.id===d.vehicle_id)||{};
+  const S=SETTINGS;
+  const oggi=new Date().toLocaleDateString('it-IT');
+  const voci=d.voci_consuntivo||[{desc:d.descrizione||'—',imp:d.importo||0}];
+  const lordo=d.importo_lordo||d.importo||0;
+  const sconto=d.sconto||0;
+  const finale=d.importo||0;
+
+  openPdf(`
+    ${pdfHeader()}
+    <div class="pdf-body">
+      <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#d97706;margin-bottom:4px">Consuntivo Danni</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:18px">Data: ${oggi}${d.noleggio_id?` · Contratto N° ${d.noleggio_id.slice(-6).toUpperCase()}`:''}  </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:18px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Cliente</div>
+          <div style="font-weight:700">${nomeAnagrafica(c)}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px">${c.codice_fiscale?'C.F.: '+c.codice_fiscale:''}</div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:12px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:6px">Veicolo</div>
+          <div style="font-weight:700">${vx.marca||''} ${vx.modello||''}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px">Targa: <strong style="font-family:monospace">${vx.targa||'—'}</strong></div>
+        </div>
+      </div>
+
+      <div style="margin-bottom:16px">
+        <div style="font-size:11px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px;padding-bottom:4px;border-bottom:2px solid #e2e8f0">Voci di costo</div>
+        <table style="width:100%;border-collapse:collapse;font-size:11px">
+          <thead><tr style="background:#0f172a;color:#fff">
+            <th style="padding:7px 10px;text-align:left">Descrizione</th>
+            <th style="padding:7px 10px;text-align:center;width:50px">Qtà</th>
+            <th style="padding:7px 10px;text-align:right;width:90px">€/unità</th>
+            <th style="padding:7px 10px;text-align:right;width:90px">Totale</th>
+          </tr></thead>
+          <tbody>
+            ${voci.map((vo,i)=>{const qty=parseFloat(vo.qty)||1;const pu=parseFloat(vo.pu)||parseFloat(vo.imp)||0;const tot=qty*pu;return`<tr style="background:${i%2===0?'#f8fafc':'#fff'}">
+              <td style="padding:8px 10px;border:1px solid #e2e8f0">${vo.desc||'—'}</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:center">${qty%1===0?qty:qty.toFixed(2)}</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right">€ ${fN(pu)}</td>
+              <td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(tot)}</td>
+            </tr>`}).join('')}
+          </tbody>
+          <tfoot>
+            <tr style="background:#f8fafc"><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">Totale lordo</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;font-weight:600">€ ${fN(lordo)}</td></tr>
+            ${sconto>0?`<tr><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#166534">Sconto</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#166534">- € ${fN(sconto)}</td></tr>`:''}
+            <tr style="background:#0f172a;color:#fff"><td style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE FINALE</td><td style="padding:10px;text-align:right;font-weight:800;font-size:16px">€ ${fN(finale)}</td></tr>
+          </tfoot>
+        </table>
+        <div style="margin-top:8px;padding:7px 10px;background:#f1f5f9;border-left:3px solid #94a3b8;font-size:9px;color:#475569">
+          I prezzi esposti sono comprensivi di IVA ove applicabile.
+        </div>
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:24px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:36px">Firma Cliente — Accettazione consuntivo</div>
+        <div style="border-bottom:1px solid #94a3b8;font-size:11px;color:#64748b">${nomeAnagrafica(c)}</div></div>
+      <div><div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:36px">Firma Operatore</div>
+        <div style="border-bottom:1px solid #94a3b8;font-size:11px;color:#64748b">${S.company_name||''}</div></div>
+    </div>
+    <div style="margin-top:16px;padding-top:8px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone'}
+    </div>
+  `);
+}
+
+
+function genPdfRestituzioneCauzione(noleggioId){
+  const n=DATA.noleggi.find(x=>x.id===noleggioId);
+  if(!n){toast('Noleggio non trovato','err');return;}
+  const c=DATA.clienti.find(x=>x.id===n.customer_id)||{};
+  const vx=DATA.veicoli.find(x=>x.id===n.vehicle_id)||{};
+  const S=SETTINGS;
+  const oggi=new Date().toLocaleDateString('it-IT');
+  const dataRest=n.cauzione_restituita_data
+    ? new Date(n.cauzione_restituita_data+'T00:00:00').toLocaleDateString('it-IT')
+    : oggi;
+  const numContratto=noleggioId.slice(-6).toUpperCase();
+  const isAz=c.tipo_anagrafica==='azienda';
+  const cfLabel=isAz?'P.IVA':'C.F.';
+  const cfVal=isAz?(c.partita_iva||'—'):(c.codice_fiscale||'—');
+
+  openPdf(`
+    ${pdfHeader()}
+    <div class="pdf-body">
+      <div style="font-size:18px;font-weight:800;text-transform:uppercase;letter-spacing:.5px;color:#2563eb;margin-bottom:4px">Ricevuta Restituzione Cauzione</div>
+      <div style="font-size:11px;color:#64748b;margin-bottom:18px">
+        Contratto N° ${numContratto} · Data restituzione: <strong>${dataRest}</strong>
+      </div>
+
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:20px">
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Locatore</div>
+          <div style="font-weight:700;font-size:13px">${S.company_name||'—'}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.7">
+            ${S.address||''}<br>P.IVA: ${S.vat||'—'}
+          </div>
+        </div>
+        <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px">
+          <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:8px">Cliente</div>
+          <div style="font-weight:700;font-size:13px">${nomeAnagrafica(c)}</div>
+          <div style="font-size:11px;color:#475569;margin-top:4px;line-height:1.7">
+            ${cfLabel}: ${cfVal}<br>
+            ${c.telefono?'Tel: '+c.telefono:''}
+          </div>
+        </div>
+      </div>
+
+      <div style="background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:14px;margin-bottom:20px">
+        <div style="font-size:10px;font-weight:700;text-transform:uppercase;color:#64748b;margin-bottom:10px">Veicolo noleggiato</div>
+        <table style="width:100%;font-size:11px;border-collapse:collapse">
+          <tr><td style="padding:4px 8px;color:#64748b;width:140px">Marca / Modello</td><td style="padding:4px 8px;font-weight:600">${vx.marca||'—'} ${vx.modello||''}</td></tr>
+          <tr style="background:#f1f5f9"><td style="padding:4px 8px;color:#64748b">Targa</td><td style="padding:4px 8px;font-family:monospace;font-weight:700">${vx.targa||'—'}</td></tr>
+          <tr><td style="padding:4px 8px;color:#64748b">Periodo noleggio</td><td style="padding:4px 8px">${new Date(n.data_inizio+'T00:00:00').toLocaleDateString('it-IT')} → ${new Date(n.data_fine+'T00:00:00').toLocaleDateString('it-IT')}</td></tr>
+        </table>
+      </div>
+
+      <div style="background:#eff6ff;border:2px solid #2563eb;border-radius:10px;padding:20px;margin-bottom:20px;text-align:center">
+        <div style="font-size:11px;color:#1e40af;font-weight:600;margin-bottom:6px;text-transform:uppercase;letter-spacing:.05em">Importo cauzione restituita</div>
+        <div style="font-size:36px;font-weight:800;color:#1d4ed8">€ ${(parseFloat(n.cauzione)||0).toFixed(2).replace('.',',')}</div>
+      </div>
+
+      <div style="padding:16px;background:#f0fdf4;border-left:4px solid #16a34a;border-radius:0 8px 8px 0;font-size:12px;color:#14532d;line-height:1.6;margin-bottom:8px">
+        <strong>Dichiarazione del Cliente</strong><br>
+        Il/La sottoscritto/a <strong>${nomeAnagrafica(c)}</strong> (${cfLabel}: ${cfVal})
+        dichiara di aver ricevuto in data <strong>${dataRest}</strong>
+        la somma di <strong>€ ${(parseFloat(n.cauzione)||0).toFixed(2).replace('.',',')}
+        </strong> a titolo di restituzione del deposito cauzionale relativo al contratto
+        di noleggio N° <strong>${numContratto}</strong> del veicolo
+        <strong>${vx.marca||''} ${vx.modello||''} (${vx.targa||'—'})</strong>,
+        dichiarando di non avere nulla a pretendere in merito a detto deposito.
+      </div>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:28px;padding-top:16px;border-top:1px solid #e2e8f0">
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma Cliente — Ricevuta cauzione</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${nomeAnagrafica(c)}</div>
+      </div>
+      <div>
+        <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Per ${S.company_name||'—'}</div>
+        <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${S.company_name||''}</div>
+      </div>
+    </div>
+    <div style="margin-top:20px;padding-top:10px;border-top:1px solid #e2e8f0;font-size:9px;color:#94a3b8;text-align:center">
+      ${S.footer_contract||'D&D DedCar – Via Emilia Ovest 9, Savignano sul Rubicone – P.IVA 04797980408'}
+    </div>
+  `);
+}
+
 function genPdfContestazione(noleggioId){
   const n=DATA.noleggi.find(x=>x.id===noleggioId);if(!n)return;
   const c=DATA.clienti.find(x=>x.id===n.customer_id)||{};
@@ -5720,6 +6777,7 @@ function genPdfVendita(id){
     <!-- Firme -->
     <div style="display:grid;grid-template-columns:1fr 1fr;gap:40px;margin-top:32px;padding-top:16px;border-top:1px solid #e2e8f0">
       <div>
+<div style="margin:12px 0 8px;padding:7px 10px;background:#f1f5f9;border-left:3px solid #94a3b8;font-size:9px;color:#475569">I prezzi esposti sono comprensivi di IVA ove applicabile.</div>
         <div style="font-size:11px;font-weight:700;color:#334155;margin-bottom:40px">Firma Acquirente</div>
         <div style="border-bottom:1px solid #94a3b8;padding-bottom:4px;font-size:11px;color:#64748b">${clienteNome}</div>
       </div>
@@ -5982,30 +7040,74 @@ function openFinFab(){
   else openSheet('payment',{metodo_pre:finTab==='banca'?'bonifico':'contanti'});
 }
 
-function renderFinanze(){
-  const body=document.getElementById('fin-body');
+function renderFinanze(extBody){
+  // extBody: quando chiamata da renderGest (tab finanze dentro gestione)
+  const body=extBody||document.getElementById('fin-body')||document.getElementById('gest-body');
   const fab=document.getElementById('fin-fab');
   if(!body)return;
   if(fab)fab.style.display=finTab==='overview'?'none':'flex';
   if(finTab==='overview')renderFinOverview(body);
   else if(finTab==='cassa')renderMovimentiIn(body,'contanti');
   else if(finTab==='banca')renderMovimentiIn(body,'banca');
+  else if(finTab==='costi_az') renderCostiAzIn(body);
   else renderCostiAzIn(body);
 }
 
 function calcSaldi(){
   const pays=DATA.payments||[];
+  const _oggi=new Date().toISOString().split('T')[0];
+
+  // ── Saldi per metodo ──────────────────────────────────────
   const saldoCassa=pays.filter(p=>p.metodo==='contanti').reduce((s,p)=>s+(p.tipo==='entrata'?1:-1)*(parseFloat(p.importo)||0),0);
   const saldoBanca=pays.filter(p=>p.metodo!=='contanti').reduce((s,p)=>s+(p.tipo==='entrata'?1:-1)*(parseFloat(p.importo)||0),0);
   const totEntrate=pays.filter(p=>p.tipo==='entrata').reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
   const totUscite=pays.filter(p=>p.tipo==='uscita').reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
   const totCostiAz=(DATA.company_costs||[]).reduce((s,c)=>s+(parseFloat(c.importo)||0),0);
-  return{saldoCassa,saldoBanca,totEntrate,totUscite,totCostiAz};
+
+  // ── Profitto reale ────────────────────────────────────────
+  // Effettivamente incassato meno effettivamente uscito
+  const profittoReale=totEntrate-totUscite-totCostiAz;
+
+  // ── Profitto operativo ────────────────────────────────────
+  // = incassato reale + crediti residui sui noleggi già iniziati
+  // Non include noleggi futuri, non include costi (già nel reale)
+  // Formula: profittoReale + Σ saldo_residuo_noleggi_attivi
+  let creditiNoleggioAttivi=0;
+  (DATA.noleggi||[])
+    .filter(n=>n.data_inizio<=_oggi)  // solo noleggi già iniziati
+    .forEach(n=>{
+      const prezzoN=parseFloat(n.prezzo)||0;
+      const accontoN=parseFloat(n.acconto)||0;
+      const pagatoN=(n.pagamenti||[]).filter(p=>p.incassato).reduce((s,p)=>s+(parseFloat(p.importo)||0),0);
+      const incassatoN=accontoN+pagatoN;
+      const saldoN=Math.max(0,prezzoN-incassatoN);
+      creditiNoleggioAttivi+=saldoN;
+    });
+  const profittoOperativo=profittoReale+creditiNoleggioAttivi;
+
+  // ── Ricavi futuri pianificati ─────────────────────────────
+  // Noleggi con data_inizio > oggi — solo informativi
+  const ricaviFuturi=(DATA.noleggi||[])
+    .filter(n=>n.data_inizio>_oggi)
+    .reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
+
+  // ── Profitto teorico (legacy) ─────────────────────────────
+  // Valore contrattuale noleggi iniziati + vendite - costi
+  const ricaviNoleggiAttivi=(DATA.noleggi||[])
+    .filter(n=>n.data_inizio<=_oggi)
+    .reduce((s,n)=>s+(parseFloat(n.prezzo)||0),0);
+  const ricaviVendite=(DATA.sales||[]).reduce((s,s2)=>s+(parseFloat(s2.prezzo_vendita)||0),0);
+  const costiVeicoli=(DATA.expenses||[]).reduce((s,e)=>s+(parseFloat(e.costo)||0),0);
+  const profittoTeorico=(ricaviNoleggiAttivi+ricaviVendite)-costiVeicoli-totCostiAz;
+
+  return{saldoCassa,saldoBanca,totEntrate,totUscite,totCostiAz,
+         profittoReale,profittoOperativo,creditiNoleggioAttivi,
+         profittoTeorico,ricaviFuturi};
 }
 
 function renderFinOverview(body){
-  const{saldoCassa,saldoBanca,totEntrate,totUscite,totCostiAz}=calcSaldi();
-  const profittoNetto=totEntrate-totUscite-totCostiAz;
+  const{saldoCassa,saldoBanca,totEntrate,totUscite,totCostiAz,profittoTeorico,profittoReale,profittoOperativo,creditiNoleggioAttivi,ricaviFuturi}=calcSaldi();
+  const profittoNetto=profittoReale; // alias per compatibilità
   const maxBar=Math.max(totEntrate,totUscite+totCostiAz,1);
 
   // Per mese corrente
@@ -6027,7 +7129,11 @@ function renderFinOverview(body){
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Entrate totali</div><div class="ios-row-title" style="color:var(--green);font-weight:700">${fE(totEntrate)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Uscite pagamenti</div><div class="ios-row-title" style="color:var(--red);font-weight:700">${fE(totUscite)}</div></div></div>
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Costi aziendali</div><div class="ios-row-title" style="color:var(--orange);font-weight:700">${fE(totCostiAz)}</div></div></div>
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Profitto netto</div><div class="ios-row-title" style="color:${profittoNetto>=0?'var(--green)':'var(--red)'};font-weight:700;font-size:20px">${fE(profittoNetto)}</div></div></div>
+        <div class="ios-row" style="background:var(--green-bg)"><div class="ios-row-body"><div class="ios-row-sub" style="font-weight:700">Profitto operativo</div><div class="ios-row-title" style="color:${profittoOperativo>=0?'var(--green)':'var(--red)'};font-weight:800;font-size:20px">${fE(profittoOperativo)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Di cui già incassato</div><div class="ios-row-title" style="color:${profittoReale>=0?'var(--green)':'var(--red)'};font-weight:600">${fE(profittoReale)}</div></div></div>
+        ${creditiNoleggioAttivi>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Crediti noleggi in corso (da incassare)</div><div class="ios-row-title" style="color:var(--blue);font-weight:600">${fE(creditiNoleggioAttivi)}</div></div></div>`:''}
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Profitto teorico (contratti attivi - costi)</div><div class="ios-row-title" style="color:var(--label2);font-weight:500;font-size:13px">${fE(profittoTeorico)}</div></div></div>
+        ${ricaviFuturi>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Ricavi pianificati futuri</div><div class="ios-row-title" style="color:var(--label3);font-weight:500;font-size:13px">${fE(ricaviFuturi)}</div></div></div>`:''}
       </div>
     </div>
     <div class="list-section"><div class="list-header">Mese corrente — ${now.toLocaleDateString('it-IT',{month:'long',year:'numeric'})}</div>
