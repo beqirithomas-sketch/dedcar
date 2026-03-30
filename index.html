@@ -3148,6 +3148,9 @@ function showNoleggio(id){
 
   // Calcolo finanziario
   const totale=parseFloat(n.prezzo)||0;
+  // IVA — retrocompatibile: se non salvata la calcoliamo dal totale
+  const imponibile=n.imponibile!=null?parseFloat(n.imponibile):Math.round(totale/1.22*100)/100;
+  const iva=n.iva!=null?parseFloat(n.iva):Math.round((totale-imponibile)*100)/100;
   const acconto=parseFloat(n.acconto)||0;
   const cauzione=parseFloat(n.cauzione)||0;
   const pagamenti=Array.isArray(n.pagamenti)?n.pagamenti:[];
@@ -3172,7 +3175,9 @@ function showNoleggio(id){
     <div class="list-section"><div class="list-header">Dettagli contratto</div>
       <div class="ios-list">
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Periodo</div><div class="ios-row-title">${fD(n.data_inizio)} → ${fD(n.data_fine)}</div></div></div>
-        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Totale contratto</div><div class="ios-row-title amount-big">${fE(totale)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Imponibile</div><div class="ios-row-title">${fE(imponibile)}</div></div></div>
+        <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">IVA 22%</div><div class="ios-row-title">${fE(iva)}</div></div></div>
+        <div class="ios-row" style="background:var(--bg3)"><div class="ios-row-body"><div class="ios-row-sub" style="font-weight:600">Totale contratto</div><div class="ios-row-title amount-big">${fE(totale)}</div></div></div>
         ${acconto>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Acconto versato</div><div class="ios-row-title" style="color:var(--green)">- ${fE(acconto)}</div></div></div>`:''}
         ${cauzione>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Deposito cauzionale</div><div class="ios-row-title" style="color:var(--blue)">${fE(cauzione)}</div></div></div>`:''}
         ${totPagamenti>0?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Pagamenti ricevuti</div><div class="ios-row-title" style="color:var(--green)">- ${fE(totPagamenti)}</div></div></div>`:''}
@@ -3231,6 +3236,7 @@ function showNoleggio(id){
       </div></div>`:''}
     ${n.km_fine!=null?`<div class="list-section"><div class="list-header">Ritiro</div>
       <div class="ios-list">
+        ${n.data_ritiro?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">Data ritiro</div><div class="ios-row-title">${fD(n.data_ritiro)}${n.ora_ritiro?' alle '+n.ora_ritiro:''}</div></div></div>`:''}
         <div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM al ritiro</div><div class="ios-row-title">${fN(n.km_fine)} km</div></div></div>
         ${kmDiff!=null?`<div class="ios-row"><div class="ios-row-body"><div class="ios-row-sub">KM percorsi</div><div class="ios-row-title" style="font-weight:600">${fN(kmDiff)} km</div></div></div>`:''}
         ${(n.km_eccedenti>0)?`<div class="ios-row" style="background:var(--orange-bg)"><div class="ios-row-body">
@@ -3622,6 +3628,12 @@ function bCheckin(body,d){
       </div>
       <input type="hidden" id="f-ci-carb" value="">
     </div>
+    <div class="fsec"><div class="fsec-title">Data e ora ritiro</div>
+      <div class="ios-fg">
+        <div class="ios-f"><label>Data ritiro *</label><input id="f-ci-data" type="date" value="${new Date().toISOString().split('T')[0]}" style="text-align:right;background:transparent;border:none;outline:none;color:var(--label);font-size:16px;font-family:inherit;flex:1;-webkit-appearance:auto;appearance:auto"></div>
+        <div class="ios-f"><label>Ora ritiro *</label><input id="f-ci-ora" type="time" value="${new Date().toTimeString().slice(0,5)}" style="text-align:right;background:transparent;border:none;outline:none;color:var(--label);font-size:16px;font-family:inherit;flex:1;-webkit-appearance:auto;appearance:auto"></div>
+      </div>
+    </div>
     <div class="fsec"><div class="fsec-title">Danni e extra</div>
       <div class="ios-fg">
         <div class="ios-f ta"><label>Danni rilevati</label><textarea id="f-ci-danni" placeholder="Descrivi eventuali danni rilevati al rientro…"></textarea></div>
@@ -3678,6 +3690,9 @@ async function saveCheckin(noleggioId){
 
     n.km_fine=km; n.carburante_fine=carb;
     n.danni_rientro=v('f-ci-danni'); n.extra_costi=parseFloat(v('f-ci-extra'))||0; n.note_fine=v('f-ci-note');
+    // Data e ora ritiro
+    n.data_ritiro=v('f-ci-data')||new Date().toISOString().split('T')[0];
+    n.ora_ritiro=v('f-ci-ora')||new Date().toTimeString().slice(0,5);
 
     // ── PUNTO 3: Calcolo km eccedenti ────────────────────────────
     const kmPercorsi = km - kmInizio;
@@ -4567,14 +4582,59 @@ function bNoleggio(body, d){
       </div>
       <input type="hidden" id="f-prezzo-mode" value="${d?.modalita_prezzo||'forfait'}">
       <div id="wrap-forfait" style="${d?.modalita_prezzo==='giorno'?'display:none':''}">
-        <div class="ios-fg"><div class="ios-f"><label>Totale (€) *</label><input id="f-prezzo" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.modalita_prezzo!=='giorno'&&d?.prezzo?d.prezzo:''}"></div></div>
+        <div class="ios-fg">
+          <div class="ios-f">
+            <label>Imponibile (€ netto)</label>
+            <input id="f-imponibile" type="number" inputmode="decimal" step="0.01" min="0"
+              placeholder="0.00"
+              value="${d?.imponibile!=null?d.imponibile:(d?.modalita_prezzo!=='giorno'&&d?.prezzo?Math.round((parseFloat(d.prezzo)||0)/1.22*100)/100:'')}"
+              oninput="calcolaIvaFromImponibile()">
+          </div>
+          <div class="ios-f">
+            <label>IVA 22%</label>
+            <input id="f-iva" type="number" readonly tabindex="-1"
+              placeholder="0.00" step="0.01"
+              style="color:var(--label3);background:var(--bg3)"
+              value="${d?.iva!=null?d.iva:(d?.modalita_prezzo!=='giorno'&&d?.prezzo?Math.round(((parseFloat(d.prezzo)||0)-(parseFloat(d.prezzo)||0)/1.22)*100)/100:'')}">
+          </div>
+          <div class="ios-f">
+            <label>Totale IVA incl. (€) *</label>
+            <input id="f-prezzo" type="number" inputmode="decimal" step="0.01" min="0"
+              placeholder="0.00"
+              value="${d?.modalita_prezzo!=='giorno'&&d?.prezzo?d.prezzo:''}"
+              oninput="calcolaIvaFromTotale()">
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--label3);padding:2px 2px 0">Inserisci imponibile o totale — l'IVA al 22% si calcola automaticamente</p>
       </div>
       <div id="wrap-giorno" style="${d?.modalita_prezzo==='giorno'?'':'display:none'}">
         <div class="ios-fg">
-          <div class="ios-f"><label>€/giorno *</label><input id="f-prezzo-giorno" type="number" inputmode="decimal" step="0.01" min="0" placeholder="0.00" value="${d?.prezzo_giornaliero||''}" oninput="calcolaPrezzo()"></div>
-          <div class="ios-f"><label>Totale stimato</label><input id="f-prezzo-calc" type="text" readonly placeholder="Calcolato auto" style="color:var(--blue);font-weight:600"></div>
+          <div class="ios-f">
+            <label>€/giorno (imponibile)</label>
+            <input id="f-prezzo-giorno" type="number" inputmode="decimal" step="0.01" min="0"
+              placeholder="0.00" value="${d?.prezzo_giornaliero||''}" oninput="calcolaPrezzo()">
+          </div>
+          <div class="ios-f">
+            <label>€/giorno (IVA incl.)</label>
+            <input id="f-prezzo-giorno-lordo" type="number" inputmode="decimal" step="0.01" min="0"
+              placeholder="0.00"
+              value="${d?.prezzo_giornaliero?Math.round(d.prezzo_giornaliero*1.22*100)/100:''}"
+              oninput="calcolaPrezzoDaLordo()">
+          </div>
         </div>
-        <p style="font-size:11px;color:var(--label3);padding:2px 2px 0">Calcolato sui giorni selezionati</p>
+        <div class="ios-fg" style="margin-top:4px">
+          <div class="ios-f">
+            <label style="color:var(--label3)">IVA 22% stimata/giorno</label>
+            <input id="f-iva-giorno" type="text" readonly tabindex="-1"
+              placeholder="—" style="color:var(--label3);background:var(--bg3)">
+          </div>
+          <div class="ios-f">
+            <label style="color:var(--blue);font-weight:600">Totale IVA incl.</label>
+            <input id="f-prezzo-calc" type="text" readonly tabindex="-1"
+              placeholder="Calcolato auto" style="color:var(--blue);font-weight:600;background:var(--bg3)">
+          </div>
+        </div>
+        <p style="font-size:11px;color:var(--label3);padding:2px 2px 0">Inserisci il netto o il lordo — l'IVA al 22% e il totale si calcolano automaticamente sui giorni selezionati</p>
       </div>
     </div>
 
@@ -4613,20 +4673,89 @@ function bNoleggio(body, d){
     </div>
     <button class="ios-btn primary" onclick="saveNoleggio()" style="margin-top:6px">${d?.id?'Aggiorna Noleggio':'Crea Noleggio'}</button>`;
 }
+
+/* ── Calcolo IVA nel form noleggio ──────────────────────────
+   _ivaLock evita loop infiniti: quando aggiorno un campo
+   in risposta all'altro, blocco temporaneamente l'evento.
+──────────────────────────────────────────────────────────── */
+let _ivaLock=false;
+function calcolaIvaFromImponibile(){
+  if(_ivaLock)return;
+  _ivaLock=true;
+  const imp=parseFloat(document.getElementById('f-imponibile')?.value)||0;
+  const iva=Math.round(imp*0.22*100)/100;
+  const tot=Math.round((imp+iva)*100)/100;
+  const elIva=document.getElementById('f-iva');
+  const elTot=document.getElementById('f-prezzo');
+  if(elIva) elIva.value=imp>0?fN(iva).replace(/\./g,'').replace(',','.'):'';
+  if(elTot) elTot.value=imp>0?tot:'';
+  _ivaLock=false;
+}
+function calcolaIvaFromTotale(){
+  if(_ivaLock)return;
+  _ivaLock=true;
+  const tot=parseFloat(document.getElementById('f-prezzo')?.value)||0;
+  const imp=Math.round(tot/1.22*100)/100;
+  const iva=Math.round((tot-imp)*100)/100;
+  const elImp=document.getElementById('f-imponibile');
+  const elIva=document.getElementById('f-iva');
+  if(elImp) elImp.value=tot>0?imp:'';
+  if(elIva) elIva.value=tot>0?fN(iva).replace(/\./g,'').replace(',','.'):'';
+  _ivaLock=false;
+}
+
 function selPrezzoMode(mode){
   document.getElementById('prezzo-forfait')?.classList.toggle('sel',mode==='forfait');
   document.getElementById('prezzo-giorno')?.classList.toggle('sel',mode==='giorno');
   document.getElementById('f-prezzo-mode').value=mode;
   document.getElementById('wrap-forfait').style.display=mode==='forfait'?'':'none';
   document.getElementById('wrap-giorno').style.display=mode==='giorno'?'':'none';
-  if(mode==='giorno')calcolaPrezzo();
+  if(mode==='giorno'){calcolaPrezzo();}
 }
 function calcolaPrezzo(){
+  // Chiamata quando si modifica €/giorno NETTO
+  if(_ivaLock)return;
+  _ivaLock=true;
   const di=v('f-di'),df=v('f-df');
   const pg=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
   const giorni=calcolaGiorni(di,df);
-  const el=document.getElementById('f-prezzo-calc');
-  if(el)el.value=giorni>0&&pg>0?`€ ${fN(pg*giorni)} (${giorni}gg × €${fN(pg)})`:'—';
+  // Calcola lordo giornaliero e IVA/giorno
+  const pgLordo=pg>0?Math.round(pg*1.22*100)/100:0;
+  const pgIva=pg>0?Math.round(pg*0.22*100)/100:0;
+  // Aggiorna campo lordo/giorno
+  const elLordo=document.getElementById('f-prezzo-giorno-lordo');
+  if(elLordo) elLordo.value=pg>0?pgLordo:'';
+  // Aggiorna IVA/giorno
+  const elIvaG=document.getElementById('f-iva-giorno');
+  if(elIvaG) elIvaG.value=pg>0?`€ ${fN(pgIva)}/gg`:'—';
+  // Aggiorna totale IVA incl.
+  const elCalc=document.getElementById('f-prezzo-calc');
+  if(elCalc) elCalc.value=giorni>0&&pg>0
+    ?`€ ${fN(Math.round(pgLordo*giorni*100)/100)} (${giorni}gg × €${fN(pgLordo)})`
+    :'—';
+  _ivaLock=false;
+}
+function calcolaPrezzoDaLordo(){
+  // Chiamata quando si modifica €/giorno LORDO
+  if(_ivaLock)return;
+  _ivaLock=true;
+  const di=v('f-di'),df=v('f-df');
+  const pgLordo=parseFloat(document.getElementById('f-prezzo-giorno-lordo')?.value)||0;
+  const pgNetto=pgLordo>0?Math.round(pgLordo/1.22*100)/100:0;
+  const pgIva=pgLordo>0?Math.round((pgLordo-pgNetto)*100)/100:0;
+  const giorni=calcolaGiorni(di,df);
+  // Aggiorna campo netto
+  const elNetto=document.getElementById('f-prezzo-giorno');
+  if(elNetto) elNetto.value=pgLordo>0?pgNetto:'';
+  // Aggiorna IVA/giorno
+  const elIvaG=document.getElementById('f-iva-giorno');
+  if(elIvaG) elIvaG.value=pgLordo>0?`€ ${fN(pgIva)}/gg`:'—';
+  // Aggiorna totale
+  const elCalc=document.getElementById('f-prezzo-calc');
+  if(elCalc) elCalc.value=giorni>0&&pgLordo>0
+    ?`€ ${fN(Math.round(pgLordo*giorni*100)/100)} (${giorni}gg × €${fN(pgLordo)})`
+    :'—';
+  _ivaLock=false;
 }
 
 function selKmOpt(opt){
@@ -4660,13 +4789,18 @@ async function saveNoleggio(){
     const giorni=calcolaGiorni(di,df);
     let pz,prezzoGiornaliero=null;
     if(mode==='giorno'){
+      // f-prezzo-giorno è il NETTO — convertiamo in lordo per il totale contratto
       prezzoGiornaliero=parseFloat(document.getElementById('f-prezzo-giorno')?.value)||0;
       if(!prezzoGiornaliero||prezzoGiornaliero<=0){toast('Inserisci il prezzo giornaliero','err');return;}
-      pz=Math.round(prezzoGiornaliero*giorni*100)/100;
+      const pgLordo=Math.round(prezzoGiornaliero*1.22*100)/100;
+      pz=Math.round(pgLordo*giorni*100)/100;
     } else {
       pz=parseFloat(v('f-prezzo'));
       if(!pz||pz<=0){toast('Prezzo non valido','err');return;}
     }
+    // Calcola/recupera imponibile e IVA
+    const _imp=parseFloat(document.getElementById('f-imponibile')?.value)||Math.round(pz/1.22*100)/100;
+    const _iva=Math.round((pz-_imp)*100)/100;
     const kmTipo=v('f-km-tipo');
     const kmNum=parseInt(v('f-km-num'))||0;
     if(kmTipo!=='illimitati'&&kmNum<=0){toast('Inserisci i KM inclusi','err');return;}
@@ -4690,6 +4824,8 @@ async function saveNoleggio(){
       customer_id:cid,vehicle_id:vid,
       data_inizio:di,data_fine:df,
       prezzo:pz,
+      imponibile:mode==='giorno'?Math.round(pz/1.22*100)/100:_imp,
+      iva:mode==='giorno'?Math.round((pz-Math.round(pz/1.22*100)/100)*100)/100:_iva,
       modalita_prezzo:mode,
       prezzo_giornaliero:prezzoGiornaliero,
       stato:existing?.stato||'attivo',
@@ -5997,6 +6133,8 @@ function genPdfNoleggio(id){
   const giorni=calcolaGiorni(n.data_inizio,n.data_fine);
   const prezzoGiorno=n.modalita_prezzo==='giorno'?(n.prezzo_giornaliero||0):(giorni>0?Math.round((n.prezzo||0)/giorni*100)/100:0);
   const totale=parseFloat(n.prezzo)||0;
+  const pdfImponibile=n.imponibile!=null?parseFloat(n.imponibile):Math.round(totale/1.22*100)/100;
+  const pdfIva=n.iva!=null?parseFloat(n.iva):Math.round((totale-pdfImponibile)*100)/100;
   const acconto=parseFloat(n.acconto)||0;
   const cauzione=parseFloat(n.cauzione)||0;
   const pagamenti=Array.isArray(n.pagamenti)?n.pagamenti:[];
@@ -6146,8 +6284,16 @@ function genPdfNoleggio(id){
           ${cauzione>0?`<tr><td colspan="3" style="padding:8px 10px;border:1px solid #e2e8f0;color:#1d4ed8">Deposito cauzionale</td><td style="padding:8px 10px;border:1px solid #e2e8f0;text-align:right;color:#1d4ed8">€ ${fN(cauzione)}</td></tr>`:''}
         </tbody>
         <tfoot>
+          <tr style="background:#f1f5f9">
+            <td colspan="3" style="padding:8px 10px;text-align:right;font-size:11px;color:#475569">Imponibile</td>
+            <td style="padding:8px 10px;text-align:right;font-size:11px;color:#475569">€ ${fN(pdfImponibile)}</td>
+          </tr>
+          <tr style="background:#f1f5f9">
+            <td colspan="3" style="padding:8px 10px;text-align:right;font-size:11px;color:#475569">IVA 22%</td>
+            <td style="padding:8px 10px;text-align:right;font-size:11px;color:#475569">€ ${fN(pdfIva)}</td>
+          </tr>
           <tr style="background:#1e40af;color:#fff">
-            <td colspan="3" style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE CONTRATTO</td>
+            <td colspan="3" style="padding:10px;text-align:right;font-weight:700;font-size:13px">TOTALE CONTRATTO (IVA incl.)</td>
             <td style="padding:10px;text-align:right;font-weight:800;font-size:16px">€ ${fN(totale)}</td>
           </tr>
           ${totIncassato>0?`<tr style="background:#166534;color:#fff"><td colspan="3" style="padding:8px 10px;text-align:right;font-weight:600">Totale incassato</td><td style="padding:8px 10px;text-align:right;font-weight:700">€ ${fN(totIncassato)}</td></tr>`:''}
@@ -6164,7 +6310,10 @@ function genPdfNoleggio(id){
     </div>
 
     ${tblPagamenti}
-    <div style="margin:6px 0 0;padding:6px 10px;background:#f1f5f9;border-left:3px solid #94a3b8;font-size:9px;color:#475569">I prezzi esposti sono comprensivi di IVA ove applicabile.</div>
+    ${n.data_ritiro?`<div style="margin:6px 0 0;padding:6px 10px;background:#f0fdf4;border-left:3px solid #16a34a;font-size:9px;color:#166534">
+      Ritiro effettuato il <strong>${fD(n.data_ritiro)}</strong>${n.ora_ritiro?' alle <strong>'+n.ora_ritiro+'</strong>':''}.
+    </div>`:''}
+    <div style="margin:6px 0 0;padding:6px 10px;background:#f1f5f9;border-left:3px solid #94a3b8;font-size:9px;color:#475569">I prezzi sono comprensivi di IVA al 22%.</div>
     </div>
     ${_buildFirmaHtml(clienteNome,'',S.company_name,S.footer_contract)}`
   }];
